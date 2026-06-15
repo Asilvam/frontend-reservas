@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "lint": "eslint .",
     "start": "serve -s dist",
     "preview": "vite preview"
@@ -23,6 +23,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.17.0",
+    "serve": "^14.2.6",
     "socket.io-client": "^4.8.3",
     "sweetalert2": "^11.26.25"
   },
