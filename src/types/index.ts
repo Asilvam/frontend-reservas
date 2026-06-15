@@ -1,0 +1,43 @@
+export interface Schedule {
+  _id: string;
+  startTime: string;
+  durationMinutes: number;
+  availableSpots: number;
+  maxDependentsPerReservation: number;
+  totalCapacity: number;
+}
+
+export interface Dependent {
+  _id: string;
+  name: string;
+  rut: string;
+}
+
+export interface Guardian {
+  _id: string;
+  name: string;
+  rut: string;
+  email: string;
+  phone: string;
+  dependents: Dependent[];
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  tokenType: 'Bearer';
+}
+
+export interface ReservationPayload {
+  scheduleId: string;
+  guardianId: string;
+  guardianParticipates: boolean;
+  attendingDependents: { name: string; rut: string }[];
+}
+
+export interface CreateGuardianPayload {
+  name: string;
+  rut: string;
+  email: string;
+  phone: string;
+  dependents: { name: string; rut: string }[];
+}

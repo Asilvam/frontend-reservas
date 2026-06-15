@@ -1,0 +1,32 @@
+:root {
+  --ink-900: #1e2431;
+  --ink-700: #4d5568;
+  --paper: #f6f8fc;
+  --line: #dde4f0;
+  --card: #ffffff;
+  --brand: #0e7490;
+  --brand-strong: #155e75;
+  --danger: #b42318;
+  --ring: rgba(14, 116, 144, 0.28);
+  --shadow-soft: 0 14px 30px -20px rgba(9, 28, 58, 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100vh;
+}
+
+body {
+  font-family: 'DM Sans', 'Nunito Sans', 'Trebuchet MS', sans-serif;
+  color: var(--ink-900);
+  background:
+    radial-gradient(circle at 10% 10%, rgba(20, 184, 166, 0.12), transparent 36%),
+    radial-gradient(circle at 90% 80%, rgba(251, 146, 60, 0.12), transparent 30%),
+    linear-gradient(135deg, #f4f7fd 0%, #eef3fb 42%, #f8fafc 100%);
+}

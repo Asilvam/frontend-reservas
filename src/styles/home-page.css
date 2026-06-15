@@ -1,0 +1,42 @@
+.home-layout {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.home-card {
+  width: 100%;
+  max-width: 680px;
+  padding: 1.8rem;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.97), rgba(243, 251, 255, 0.95));
+}
+
+.home-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.home-copy {
+  max-width: 50ch;
+}
+
+.home-register-hint {
+  max-width: 50ch;
+  margin-top: 0.2rem;
+  color: var(--ink-700);
+}
+
+.home-primary-btn {
+  min-height: 46px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+}
+
+.home-secondary-btn {
+  min-height: 44px;
+}

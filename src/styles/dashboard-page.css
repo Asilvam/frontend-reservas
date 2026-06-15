@@ -1,0 +1,19 @@
+.dashboard-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-layout {
+  padding-block: 1.8rem;
+}
+
+.dashboard-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-subtitle {
+  margin-bottom: 0.2rem;
+}

@@ -1,0 +1,51 @@
+.login-layout {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  padding: 2rem 1.6rem 1.5rem;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+}
+
+.login-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.login-subtitle {
+  margin-bottom: 1.25rem;
+}
+
+.login-alert {
+  margin-bottom: 1rem;
+}
+
+.login-form {
+  margin-top: 0.45rem;
+}
+
+.login-submit-btn {
+  margin-top: 0.35rem;
+  min-height: 45px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+}
+
+.login-submit-btn:hover {
+  filter: brightness(1.03);
+}
+
+.login-register-link {
+  align-self: center;
+  text-transform: none;
+  font-weight: 700;
+}
