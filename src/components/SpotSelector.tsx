@@ -17,15 +17,18 @@ import {
   Select,
   Typography,
 } from '@mui/material';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import Swal from 'sweetalert2';
-import type { Guardian, ReservationPayload, Schedule } from '../types';
+import type { Guardian, ReservationPayload, ReservationSummary, Schedule } from '../types';
 import '../styles/spot-selector.css';
 
 type SpotSelectorProps = {
   schedules: Schedule[];
   guardian: Guardian;
-  onSubmit: (payload: ReservationPayload) => void;
+  onSubmit: (payload: ReservationPayload) => Promise<boolean>;
   submitting?: boolean;
+  reservedDateKeys?: string[];
+  reservationsByDate?: Record<string, ReservationSummary>;
 };
 
 export function SpotSelector({
@@ -33,6 +36,8 @@ export function SpotSelector({
   guardian,
   onSubmit,
   submitting = false,
+  reservedDateKeys = [],
+  reservationsByDate = {},
 }: SpotSelectorProps) {
   const [selectedScheduleId, setSelectedScheduleId] = useState('');
   const [selectedDateKey, setSelectedDateKey] = useState('');
@@ -114,6 +119,34 @@ export function SpotSelector({
     [filteredSchedules, selectedScheduleId],
   );
 
+  const hasReservationForSelectedDate = Boolean(selectedDateKey && reservedDateKeys.includes(selectedDateKey));
+  const reservedEntry = selectedDateKey ? reservationsByDate[selectedDateKey] : undefined;
+
+  const reservedScheduleId =
+    reservedEntry && typeof reservedEntry.scheduleId === 'object'
+      ? reservedEntry.scheduleId?._id
+      : reservedEntry?.scheduleId;
+
+  const reservedSchedule = reservedScheduleId
+    ? schedules.find((schedule) => schedule._id === reservedScheduleId)
+    : undefined;
+
+  const reservedTimeRange = reservedSchedule
+    ? `${new Date(reservedSchedule.startTime).toLocaleTimeString('es-CL', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}-${new Date(
+        new Date(reservedSchedule.startTime).getTime() + reservedSchedule.durationMinutes * 60_000,
+      ).toLocaleTimeString('es-CL', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`
+    : 'Horario ya confirmado';
+
+  const companionNames = reservedEntry?.attendingDependents?.map((dependent) => dependent.name) ?? [];
+  const companionLabel = companionNames.length > 0 ? companionNames.join(', ') : 'Sin acompanantes';
+  const guardianLabel = reservedEntry?.guardianParticipates === false ? 'No participa' : guardian.name;
+
   const spotsToConsume = (guardianParticipates ? 1 : 0) + selectedDependents.length;
   const isOverCapacity = selectedSchedule ? spotsToConsume > selectedSchedule.availableSpots : false;
   const isZeroSelection = spotsToConsume === 0;
@@ -135,7 +168,9 @@ export function SpotSelector({
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (submitting) return;
+
     if (isZeroSelection) {
       void Swal.fire({
         icon: 'warning',
@@ -166,7 +201,17 @@ export function SpotSelector({
       return;
     }
 
-    onSubmit({
+    if (hasReservationForSelectedDate) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Dia ya reservado',
+        text: 'Ya tienes una reserva activa para este dia. Selecciona otra fecha.',
+        confirmButtonColor: '#1E3A8A',
+      });
+      return;
+    }
+
+    const wasCreated = await onSubmit({
       scheduleId: selectedSchedule._id,
       guardianId: guardian._id,
       guardianParticipates,
@@ -175,7 +220,9 @@ export function SpotSelector({
         .map((dependent) => ({ name: dependent.name, rut: dependent.rut })),
     });
 
-    setIsAttendanceModalOpen(false);
+    if (wasCreated) {
+      setIsAttendanceModalOpen(false);
+    }
   };
 
   return (
@@ -199,6 +246,19 @@ export function SpotSelector({
         <Typography color="text.secondary" className="spot-helper-text">
           Selecciona el horario que deseas.
         </Typography>
+
+        {hasReservationForSelectedDate ? (
+          <Box className="spot-active-reservation-banner" role="status" aria-live="polite">
+            <WarningAmberRoundedIcon className="spot-active-reservation-icon" />
+            <Box>
+              <Typography className="spot-active-reservation-title">iTienes una reserva activa!</Typography>
+              <Typography className="spot-active-reservation-line">Fecha: {formatDateLabel(selectedDateKey)}</Typography>
+              <Typography className="spot-active-reservation-line">Turno: {reservedTimeRange}</Typography>
+              <Typography className="spot-active-reservation-line">Apoderado: {guardianLabel}</Typography>
+              <Typography className="spot-active-reservation-line">Acompanantes: {companionLabel}</Typography>
+            </Box>
+          </Box>
+        ) : null}
       </Box>
 
       <Box className="spot-schedule-grid">
@@ -226,7 +286,7 @@ export function SpotSelector({
               key={schedule._id}
               variant={isSelected ? 'contained' : 'outlined'}
               color={isSoldOut ? 'inherit' : 'primary'}
-              disabled={isSoldOut}
+              disabled={isSoldOut || hasReservationForSelectedDate}
               onClick={() => {
                 setSelectedScheduleId(schedule._id);
                 setGuardianParticipates(true);
@@ -277,17 +337,20 @@ export function SpotSelector({
           onClose={submitting ? undefined : () => setIsAttendanceModalOpen(false)}
           fullWidth
           maxWidth="sm"
+          slotProps={{ paper: { className: 'spot-dialog-paper' } }}
         >
+          {submitting ? (
+            <Box className="spot-dialog-loading-overlay">
+              <Box className="spot-dialog-loading-card">
+                <CircularProgress size={40} />
+                <Typography variant="body1">Confirmando reserva...</Typography>
+              </Box>
+            </Box>
+          ) : null}
+
           <DialogTitle>Selecciona quienes asisten.</DialogTitle>
           <DialogContent>
             <Box className="spot-attendance-box">
-              {submitting ? (
-                <Box className="spot-modal-loading-overlay">
-                  <CircularProgress size={28} />
-                  <Typography variant="body2">Confirmando reserva...</Typography>
-                </Box>
-              ) : null}
-
               <FormControlLabel
                 control={
                   <Checkbox
@@ -331,7 +394,7 @@ export function SpotSelector({
             <Button onClick={() => setIsAttendanceModalOpen(false)} disabled={submitting}>
               Cancelar
             </Button>
-            <Button variant="contained" disabled={submitting} onClick={handleSubmit}>
+            <Button variant="contained" disabled={submitting} onClick={() => void handleSubmit()}>
               {submitting ? 'Confirmando...' : 'Confirmar'}
             </Button>
           </DialogActions>

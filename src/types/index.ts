@@ -34,6 +34,14 @@ export interface ReservationPayload {
   attendingDependents: { name: string; rut: string }[];
 }
 
+export interface ReservationSummary {
+  _id: string;
+  scheduleId: string | { _id: string };
+  reservationDay: string;
+  guardianParticipates?: boolean;
+  attendingDependents?: { name: string; rut: string }[];
+}
+
 export interface CreateGuardianPayload {
   name: string;
   rut: string;

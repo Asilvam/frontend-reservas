@@ -32,6 +32,33 @@
   text-align: left;
 }
 
+.spot-active-reservation-banner {
+  margin-top: 0.95rem;
+  border-left: 5px solid #d9a300;
+  border-radius: 12px;
+  padding: 0.8rem 0.95rem;
+  background: #efe3bf;
+  color: #6f4b00;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.spot-active-reservation-icon {
+  color: #8a5b00;
+  flex-shrink: 0;
+}
+
+.spot-active-reservation-title {
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.spot-active-reservation-line {
+  font-size: 0.94rem;
+  line-height: 1.3;
+}
+
 .spot-step-title {
   margin-bottom: 0.85rem;
 }
@@ -133,22 +160,37 @@
 }
 
 .spot-attendance-box {
-  position: relative;
   margin-top: 0.35rem;
 }
 
-.spot-modal-loading-overlay {
+.spot-dialog-paper {
+  position: relative;
+}
+
+.spot-dialog-loading-overlay {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: rgba(241, 245, 249, 0.7);
+  backdrop-filter: blur(2.2px);
+}
+
+.spot-dialog-loading-card {
+  min-width: 250px;
+  padding: 1rem 1.4rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #dbe2ef;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 0.75rem;
-  border-radius: 10px;
-  background: rgba(248, 250, 252, 0.86);
-  backdrop-filter: blur(1.5px);
+  color: #0f172a;
 }
 
 .spot-subtitle {
@@ -202,5 +244,10 @@
 
   .spot-schedule-grid {
     grid-template-columns: 1fr;
+  }
+
+  .spot-dialog-loading-card {
+    min-width: 0;
+    width: calc(100% - 2rem);
   }
 }

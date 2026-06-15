@@ -3,7 +3,7 @@ import { Alert, Box, CircularProgress, Container, Stack } from '@mui/material';
 import Swal from 'sweetalert2';
 import { SpotSelector } from '../components/SpotSelector';
 import { api, socket } from '../services/api';
-import type { Guardian, ReservationPayload, Schedule } from '../types';
+import type { Guardian, ReservationPayload, ReservationSummary, Schedule } from '../types';
 import '../styles/dashboard-page.css';
 
 export function DashboardPage() {
@@ -11,6 +11,16 @@ export function DashboardPage() {
   const [guardian, setGuardian] = useState<Guardian | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [reservedDateKeys, setReservedDateKeys] = useState<string[]>([]);
+  const [reservationsByDate, setReservationsByDate] = useState<Record<string, ReservationSummary>>({});
+
+  const getDateKey = (dateValue: string | Date) => {
+    const date = new Date(dateValue);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   const getBackendMessage = (error: unknown) => {
     if (typeof error !== 'object' || error === null || !('response' in error)) return '';
@@ -76,10 +86,29 @@ export function DashboardPage() {
     const fetchSchedules = async () => {
       try {
         const token = localStorage.getItem('accessToken');
-        const { data } = await api.get<Schedule[]>('/schedules', {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        setSchedules(data);
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+        const [{ data: schedulesData }, { data: reservationsData }] = await Promise.all([
+          api.get<Schedule[]>('/schedules', { headers }),
+          api.get<ReservationSummary[]>('/reservations', { headers }),
+        ]);
+
+        setSchedules(schedulesData);
+
+        const nextReservationsByDate = reservationsData.reduce<Record<string, ReservationSummary>>(
+          (acc, reservation) => {
+            const dateKey = getDateKey(reservation.reservationDay);
+            acc[dateKey] = reservation;
+            return acc;
+          },
+          {},
+        );
+
+        const nextReservedDateKeys = Object.keys(nextReservationsByDate);
+
+        setReservedDateKeys(nextReservedDateKeys);
+        setReservationsByDate(nextReservationsByDate);
+
       } catch (error: unknown) {
         const backendMessage = getBackendMessage(error);
 
@@ -118,7 +147,21 @@ export function DashboardPage() {
     };
   }, []);
 
-  const handleReservationSubmit = async (payload: ReservationPayload) => {
+  const handleReservationSubmit = async (payload: ReservationPayload): Promise<boolean> => {
+    const selectedSchedule = schedules.find((schedule) => schedule._id === payload.scheduleId);
+    if (selectedSchedule) {
+      const selectedDateKey = getDateKey(selectedSchedule.startTime);
+      if (reservedDateKeys.includes(selectedDateKey)) {
+        void Swal.fire({
+          icon: 'warning',
+          title: 'Dia ya reservado',
+          text: 'Ya tienes una reserva para ese dia. Selecciona otra fecha.',
+          confirmButtonColor: '#1E3A8A',
+        });
+        return false;
+      }
+    }
+
     try {
       setSubmitting(true);
       const token = localStorage.getItem('accessToken');
@@ -133,6 +176,21 @@ export function DashboardPage() {
         text: 'Tu reserva se confirmo con exito.',
         confirmButtonColor: '#1E3A8A',
       });
+
+      if (selectedSchedule) {
+        const selectedDateKey = getDateKey(selectedSchedule.startTime);
+        setReservedDateKeys((prev) => (prev.includes(selectedDateKey) ? prev : [...prev, selectedDateKey]));
+        setReservationsByDate((prev) => ({
+          ...prev,
+          [selectedDateKey]: {
+            _id: `temp-${selectedDateKey}`,
+            scheduleId: payload.scheduleId,
+            reservationDay: selectedDateKey,
+          },
+        }));
+      }
+
+      return true;
     } catch (error: unknown) {
       void Swal.fire({
         icon: 'error',
@@ -140,6 +198,8 @@ export function DashboardPage() {
         text: getReservationErrorText(error),
         confirmButtonColor: '#1E3A8A',
       });
+
+      return false;
     } finally {
       setSubmitting(false);
     }
@@ -158,11 +218,13 @@ export function DashboardPage() {
       <Stack spacing={2}>
         {guardian ? (
           <SpotSelector
-          schedules={schedules}
-          guardian={guardian}
-          onSubmit={handleReservationSubmit}
-          submitting={submitting}
-        />
+            schedules={schedules}
+            guardian={guardian}
+            onSubmit={handleReservationSubmit}
+            submitting={submitting}
+            reservedDateKeys={reservedDateKeys}
+            reservationsByDate={reservationsByDate}
+          />
         ) : (
           <Alert severity="warning">No se encontro perfil de apoderado. Inicia sesion nuevamente.</Alert>
         )}
