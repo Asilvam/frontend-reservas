@@ -321,7 +321,7 @@ export function SelvaPage() {
       const dateObj = new Date(selectedSchedule.startTime);
       const day = dateObj.toLocaleDateString('es-CL', { timeZone: 'America/Santiago', day: 'numeric' });
       const month = dateObj.toLocaleDateString('es-CL', { timeZone: 'America/Santiago', month: 'long' });
-      const dateLabel = `${day} ${month}`.toUpperCase();
+      const dateLabel = `${day} de ${month.charAt(0).toUpperCase() + month.slice(1)}`;
       const timeLabel = formatChileTime(dateObj);
 
       setCreatedReservation({
@@ -837,31 +837,31 @@ export function SelvaPage() {
           {step === 4 && createdReservation && (
             <Stack spacing={3} className="selva-step-content selva-confirmation-container">
               <Typography variant="h6" className="selva-step-title centered selva-confirmation-title">
-                CONFIRMACIÓN
+                Confirmación
               </Typography>
 
               <Box className="selva-confirmation-card">
                 <Typography className="selva-confirmation-success-text">
-                  RESERVA REALIZADA CON ÉXITO!
+                  ¡Reserva realizada con éxito!
                 </Typography>
 
                 <ul className="selva-confirmation-list">
                   <li className="selva-confirmation-item">
                     <span className="selva-bullet-square"></span>
                     <Typography className="selva-item-text">
-                      CÓDIGO DE RESERVA: SV-{createdReservation.id.slice(-5).toUpperCase()}
+                      Código de reserva: SV-{createdReservation.id.slice(-5).toUpperCase()}
                     </Typography>
                   </li>
                   <li className="selva-confirmation-item">
                     <span className="selva-bullet-square"></span>
                     <Typography className="selva-item-text">
-                      FECHA: {createdReservation.dateLabel}
+                      Fecha: {createdReservation.dateLabel}
                     </Typography>
                   </li>
                   <li className="selva-confirmation-item">
                     <span className="selva-bullet-square"></span>
                     <Typography className="selva-item-text">
-                      HORARIO: {createdReservation.timeLabel}
+                      Horario: {createdReservation.timeLabel}
                     </Typography>
                   </li>
                   <li className="selva-confirmation-item warning-highlight">
@@ -869,38 +869,39 @@ export function SelvaPage() {
                       <Warning className="warning-icon" />
                     </span>
                     <Typography className="selva-item-text warning-text">
-                      DEBES PRESENTARTE 20 MINUTOS ANTES.
+                      Debes presentarte 20 minutos antes.
                     </Typography>
                   </li>
                   <li className="selva-confirmation-item">
                     <span className="selva-bullet-square"></span>
                     <Typography className="selva-item-text">
-                      HEMOS ENVIADO LA CONFIRMACIÓN A TU CORREO.
+                      Hemos enviado la confirmación a tu correo.
                     </Typography>
                   </li>
                   <li className="selva-confirmation-item">
                     <span className="selva-bullet-square"></span>
                     <Typography className="selva-item-text">
-                      TAMBIÉN RECIBIRÁS UN WHATSAPP CON TU QR.
+                      También recibirás un WhatsApp con tu QR.
                     </Typography>
                   </li>
                 </ul>
 
-                <Typography className="selva-buttons-label">
-                  BOTONES:
-                </Typography>
-
-                <Stack spacing={2} className="selva-confirmation-actions">
+                <Box className="selva-confirmation-actions">
                   <Button
                     variant="contained"
                     onClick={handleDownloadQr}
                     className="selva-download-qr-btn"
-                    fullWidth
                   >
-                    DESCARGAR QR
+                    Descargar QR
                   </Button>
-
-                </Stack>
+                  <Button
+                    variant="outlined"
+                    onClick={handleGoHome}
+                    className="selva-volver-btn"
+                  >
+                    Cerrar
+                  </Button>
+                </Box>
               </Box>
             </Stack>
           )}
