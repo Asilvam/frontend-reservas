@@ -27,9 +27,6 @@ export function HomePage() {
       <Box className="home-campaigns-grid">
         <Box className="home-campaign-card home-campaign-card-active">
           <Box component="img" className="home-campaign-image" src={selvaVivaCard} alt="Campana Selva Viva" />
-          <Typography className="home-campaign-copy">
-            Cupos limitados hasta agotar stock - Fechas disponibles: 25 al 28 de junio
-          </Typography>
           <Button
             variant="contained"
             className="home-campaign-btn"
@@ -41,9 +38,6 @@ export function HomePage() {
 
         <Box className="home-campaign-card home-campaign-card-upcoming" aria-label="Campana Pista de Hielo bloqueada">
           <Box component="img" className="home-campaign-image" src={hieloCard} alt="Campana Pista de Hielo" />
-          <Typography className="home-campaign-copy">
-            Cupos limitados hasta agotar stock - Fechas disponibles: 30 junio al 05 de julio
-          </Typography>
           <Button variant="contained" className="home-campaign-btn home-campaign-btn-disabled" disabled>
             PROXIMAMMENTE
           </Button>
