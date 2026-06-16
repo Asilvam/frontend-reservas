@@ -662,3 +662,131 @@
   color: #0f766e !important; /* Color when checked (teal) */
 }
 
+/* ==========================================
+   CONFIRMATION SCREEN (STEP 4)
+   ========================================== */
+
+.selva-confirmation-container {
+  padding-top: 0.5rem;
+}
+
+.selva-confirmation-title {
+  color: #5b21b6 !important; /* Purple title as seen in PÁGINA 5: CONFIRMACIÓN */
+  font-size: 1.35rem !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+}
+
+.selva-confirmation-card {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  padding: 1rem 0;
+}
+
+.selva-confirmation-success-text {
+  font-size: 1.05rem !important;
+  font-weight: 800 !important;
+  color: #000000 !important;
+  margin-bottom: 1.25rem !important;
+  letter-spacing: 0.02em;
+}
+
+.selva-confirmation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.75rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.selva-confirmation-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.selva-confirmation-item.warning-highlight {
+  align-items: center;
+}
+
+.selva-bullet-square {
+  width: 14px;
+  height: 14px;
+  background-color: #000000;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.selva-bullet-warning {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000;
+  flex-shrink: 0;
+}
+
+.selva-bullet-warning .warning-icon {
+  font-size: 18px !important;
+}
+
+.selva-item-text {
+  font-size: 0.92rem !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+}
+
+.selva-item-text.warning-text {
+  color: #000000 !important;
+}
+
+.selva-buttons-label {
+  font-size: 0.95rem !important;
+  font-weight: 800 !important;
+  color: #000000 !important;
+  margin-bottom: 0.75rem !important;
+  text-transform: uppercase;
+}
+
+.selva-confirmation-actions {
+  width: 100%;
+  max-width: 320px;
+}
+
+.selva-download-qr-btn {
+  background-color: #ff2a00 !important; /* Bright red */
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 1rem !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 6px !important;
+  text-transform: uppercase !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(255, 42, 0, 0.25) !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.selva-download-qr-btn:hover {
+  background-color: #e02400 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 42, 0, 0.35) !important;
+}
+
+.selva-volver-btn {
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
+  font-weight: 800 !important;
+  font-size: 1rem !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 6px !important;
+  text-transform: uppercase !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.selva-volver-btn:hover {
+  background-color: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+}
+

@@ -1,4 +1,4 @@
-import { Add, DeleteOutlined, ArrowBack, ArrowForward, CheckCircle } from '@mui/icons-material';
+import { Add, DeleteOutlined, ArrowBack, ArrowForward, CheckCircle, Warning } from '@mui/icons-material';
 import {
   Alert,
   Box,
@@ -86,7 +86,12 @@ export function SelvaPage() {
   const [searchParams] = useSearchParams();
 
   // Wizard state
-  const [step, setStep] = useState(1); // 1: Datos, 2: Horario, 3: Resumen
+  const [step, setStep] = useState(1); // 1: Datos, 2: Horario, 3: Resumen, 4: Confirmacion
+  const [createdReservation, setCreatedReservation] = useState<{
+    id: string;
+    dateLabel: string;
+    timeLabel: string;
+  } | null>(null);
 
   // Form states (Step 1)
   const [name, setName] = useState('');
@@ -291,14 +296,41 @@ export function SelvaPage() {
 
       await api.post('/reservations', reservationPayload);
 
-      await Swal.fire({
-        icon: 'success',
-        title: 'Inscripción confirmada',
-        text: 'Tu registro y reserva se completaron con éxito. Te esperamos.',
-        confirmButtonColor: '#0f766e',
+      // Poll for the reservation to be created by the background queue
+      let reservationId = '';
+      const maxRetries = 15;
+      const delayMs = 600;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const { data: resData } = await api.get<{ _id: string }>(`/reservations/by-guardian/${createdGuardian._id}`);
+          if (resData && resData._id) {
+            reservationId = resData._id;
+            break;
+          }
+        } catch (pollError) {
+          // Ignore errors during polling, retry
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+
+      if (!reservationId) {
+        throw new Error('La reserva está tomando más tiempo de lo esperado en procesarse. Por favor verifica tu correo o contacta a soporte.');
+      }
+
+      const dateObj = new Date(selectedSchedule.startTime);
+      const day = dateObj.toLocaleDateString('es-CL', { timeZone: 'America/Santiago', day: 'numeric' });
+      const month = dateObj.toLocaleDateString('es-CL', { timeZone: 'America/Santiago', month: 'long' });
+      const dateLabel = `${day} ${month}`.toUpperCase();
+      const timeLabel = formatChileTime(dateObj);
+
+      setCreatedReservation({
+        id: reservationId,
+        dateLabel,
+        timeLabel,
       });
 
-      // Clear states & go home
+      // Clear states & go to step 4 (confirmation)
       setName('');
       setRut('');
       setEmail('');
@@ -310,9 +342,7 @@ export function SelvaPage() {
       setSelectedScheduleId('');
       setAcceptMarketing(false);
       setAcceptDataTerms(false);
-      setStep(1);
-
-      navigate('/home');
+      setStep(4);
     } catch (error: unknown) {
       const backendMessage =
         typeof error === 'object' &&
@@ -333,6 +363,23 @@ export function SelvaPage() {
     }
   };
 
+  const handleDownloadQr = () => {
+    if (!createdReservation) return;
+    const url = `${api.defaults.baseURL}/reservations/${createdReservation.id}/qrcode`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `reserva-${createdReservation.id}.png`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleGoHome = () => {
+    setStep(1);
+    setCreatedReservation(null);
+    navigate('/home');
+  };
+
   return (
     <Box className="selva-layout" style={{ backgroundImage: `url(${fondoImage})` }}>
       <Box className="selva-header-wrap">
@@ -342,22 +389,24 @@ export function SelvaPage() {
       <Box className="selva-content-wrap">
         <Paper elevation={2} className="selva-wizard-card">
           {/* Stepper visual */}
-          <Box className="selva-stepper-container">
-            <Box className="selva-stepper">
-              <Box className={`selva-step-dot ${step >= 1 ? 'active' : ''}`}>1</Box>
-              <Box className={`selva-step-line ${step >= 2 ? 'active' : ''}`} />
-              <Box className={`selva-step-dot ${step >= 2 ? 'active' : ''}`}>2</Box>
-              <Box className={`selva-step-line ${step >= 3 ? 'active' : ''}`} />
-              <Box className={`selva-step-dot ${step >= 3 ? 'active' : ''}`}>3</Box>
+          {step <= 3 && (
+            <Box className="selva-stepper-container">
+              <Box className="selva-stepper">
+                <Box className={`selva-step-dot ${step >= 1 ? 'active' : ''}`}>1</Box>
+                <Box className={`selva-step-line ${step >= 2 ? 'active' : ''}`} />
+                <Box className={`selva-step-dot ${step >= 2 ? 'active' : ''}`}>2</Box>
+                <Box className={`selva-step-line ${step >= 3 ? 'active' : ''}`} />
+                <Box className={`selva-step-dot ${step >= 3 ? 'active' : ''}`}>3</Box>
+              </Box>
+              <Box className="selva-stepper-labels">
+                <Typography className={`selva-step-label ${step === 1 ? 'active' : ''}`}>Datos apoderado</Typography>
+                <Typography className={`selva-step-label ${step === 2 ? 'active' : ''}`}>Elegir horario</Typography>
+                <Typography className={`selva-step-label ${step === 3 ? 'active' : ''}`}>Confirmar</Typography>
+              </Box>
             </Box>
-            <Box className="selva-stepper-labels">
-              <Typography className={`selva-step-label ${step === 1 ? 'active' : ''}`}>Datos apoderado</Typography>
-              <Typography className={`selva-step-label ${step === 2 ? 'active' : ''}`}>Elegir horario</Typography>
-              <Typography className={`selva-step-label ${step === 3 ? 'active' : ''}`}>Confirmar</Typography>
-            </Box>
-          </Box>
+          )}
 
-          <Divider className="selva-step-divider" />
+          {step <= 3 && <Divider className="selva-step-divider" />}
 
           {/* STEP 1: Formulario de datos */}
           {step === 1 && (
@@ -780,6 +829,78 @@ export function SelvaPage() {
                 >
                   Inscribirse
                 </Button>
+              </Box>
+            </Stack>
+          )}
+
+          {/* STEP 4: Confirmación de reserva */}
+          {step === 4 && createdReservation && (
+            <Stack spacing={3} className="selva-step-content selva-confirmation-container">
+              <Typography variant="h6" className="selva-step-title centered selva-confirmation-title">
+                CONFIRMACIÓN
+              </Typography>
+
+              <Box className="selva-confirmation-card">
+                <Typography className="selva-confirmation-success-text">
+                  RESERVA REALIZADA CON ÉXITO!
+                </Typography>
+
+                <ul className="selva-confirmation-list">
+                  <li className="selva-confirmation-item">
+                    <span className="selva-bullet-square"></span>
+                    <Typography className="selva-item-text">
+                      CÓDIGO DE RESERVA: SV-{createdReservation.id.slice(-5).toUpperCase()}
+                    </Typography>
+                  </li>
+                  <li className="selva-confirmation-item">
+                    <span className="selva-bullet-square"></span>
+                    <Typography className="selva-item-text">
+                      FECHA: {createdReservation.dateLabel}
+                    </Typography>
+                  </li>
+                  <li className="selva-confirmation-item">
+                    <span className="selva-bullet-square"></span>
+                    <Typography className="selva-item-text">
+                      HORARIO: {createdReservation.timeLabel}
+                    </Typography>
+                  </li>
+                  <li className="selva-confirmation-item warning-highlight">
+                    <span className="selva-bullet-warning">
+                      <Warning className="warning-icon" />
+                    </span>
+                    <Typography className="selva-item-text warning-text">
+                      DEBES PRESENTARTE 20 MINUTOS ANTES.
+                    </Typography>
+                  </li>
+                  <li className="selva-confirmation-item">
+                    <span className="selva-bullet-square"></span>
+                    <Typography className="selva-item-text">
+                      HEMOS ENVIADO LA CONFIRMACIÓN A TU CORREO.
+                    </Typography>
+                  </li>
+                  <li className="selva-confirmation-item">
+                    <span className="selva-bullet-square"></span>
+                    <Typography className="selva-item-text">
+                      TAMBIÉN RECIBIRÁS UN WHATSAPP CON TU QR.
+                    </Typography>
+                  </li>
+                </ul>
+
+                <Typography className="selva-buttons-label">
+                  BOTONES:
+                </Typography>
+
+                <Stack spacing={2} className="selva-confirmation-actions">
+                  <Button
+                    variant="contained"
+                    onClick={handleDownloadQr}
+                    className="selva-download-qr-btn"
+                    fullWidth
+                  >
+                    DESCARGAR QR
+                  </Button>
+
+                </Stack>
               </Box>
             </Stack>
           )}
