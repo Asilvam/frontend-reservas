@@ -1,5 +1,5 @@
 import { Add, DeleteOutlined } from '@mui/icons-material';
-import { Box, Button, Container, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Checkbox, Container, FormControlLabel, IconButton, InputAdornment, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 import { api } from '../services/api';
@@ -11,16 +11,26 @@ const MAX_DEPENDENTS = 3;
 type DependentFormItem = {
   name: string;
   rut: string;
+  age: string;
 };
 
-const EMPTY_DEPENDENT: DependentFormItem = { name: '', rut: '' };
+const EMPTY_DEPENDENT: DependentFormItem = { name: '', rut: '', age: '' };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CHILEAN_MOBILE_REGEX = /^\+569\d{8}$/;
+const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
 const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
 
 function normalizeRut(rawRut: string) {
   return rawRut.replace(/-/g, '').trim().toUpperCase();
+}
+
+function formatRut(value: string) {
+  const clean = value.replace(/[^0-9kK]/g, '').slice(0, 9);
+  if (clean.length === 0) return '';
+  if (clean.length === 1) return clean.toUpperCase();
+  const body = clean.slice(0, -1);
+  const dv = clean.slice(-1).toUpperCase();
+  return `${body}-${dv}`;
 }
 
 function isValidChileanRut(rawRut: string) {
@@ -52,6 +62,9 @@ export function RegisterGuardianPage() {
   const [rut, setRut] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [commune, setCommune] = useState('');
+  const [isAccompanied, setIsAccompanied] = useState(false);
   const [dependents, setDependents] = useState<DependentFormItem[]>([{ ...EMPTY_DEPENDENT }]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -60,19 +73,37 @@ export function RegisterGuardianPage() {
   const isGuardianRutValid = isValidChileanRut(rut);
   const isGuardianEmailValid = EMAIL_REGEX.test(email.trim());
   const isGuardianPhoneValid = CHILEAN_MOBILE_REGEX.test(phone.trim());
-  const areDependentsValid = dependents.every(
-    (dep) => dep.name.trim().length >= 2 && isValidChileanRut(dep.rut),
-  );
+
+  const activeDependents = useMemo(() => {
+    if (!isAccompanied) return [];
+    return dependents.filter((dep) => dep.name.trim().length > 0 || dep.rut.trim().length > 0 || dep.age.trim().length > 0);
+  }, [dependents, isAccompanied]);
+
+  const areDependentsValid = useMemo(() => {
+    if (!isAccompanied) return true;
+    if (activeDependents.length === 0) return false;
+    return activeDependents.every(
+      (dep) =>
+        dep.name.trim().length >= 2 &&
+        isValidChileanRut(dep.rut) &&
+        dep.age.trim().length > 0 &&
+        !isNaN(Number(dep.age)) &&
+        Number(dep.age) >= 0 &&
+        Number(dep.age) <= 130,
+    );
+  }, [activeDependents, isAccompanied]);
 
   const isValid = useMemo(() => {
     if (name.trim().length < 2) return false;
     if (!isGuardianRutValid) return false;
     if (!isGuardianEmailValid) return false;
     if (!isGuardianPhoneValid) return false;
+    if (address.trim().length < 2) return false;
+    if (commune.trim().length < 2) return false;
     if (!areDependentsValid) return false;
 
-    return dependents.length > 0;
-  }, [areDependentsValid, dependents.length, isGuardianEmailValid, isGuardianPhoneValid, isGuardianRutValid, name]);
+    return true;
+  }, [areDependentsValid, isGuardianEmailValid, isGuardianPhoneValid, isGuardianRutValid, name, address, commune]);
 
   const handleChangeDependent = (index: number, field: keyof DependentFormItem, value: string) => {
     setDependents((prev) =>
@@ -100,13 +131,14 @@ export function RegisterGuardianPage() {
         name: name.trim(),
         rut: rut.trim(),
         email: email.trim(),
-        phone: phone.trim(),
-        dependents: dependents
-          .map((dependent) => ({
-            name: dependent.name.trim(),
-            rut: dependent.rut.trim(),
-          }))
-          .filter((dependent) => dependent.name && dependent.rut),
+        phone: `+569${phone.trim()}`,
+        address: address.trim(),
+        commune: commune.trim(),
+        dependents: activeDependents.map((dependent) => ({
+          name: dependent.name.trim(),
+          rut: dependent.rut.trim(),
+          age: Number(dependent.age),
+        })),
       };
 
       await api.post('/guardians', payload, {
@@ -124,6 +156,9 @@ export function RegisterGuardianPage() {
       setRut('');
       setEmail('');
       setPhone('');
+      setAddress('');
+      setCommune('');
+      setIsAccompanied(false);
       setDependents([{ ...EMPTY_DEPENDENT }]);
     } catch (error: unknown) {
       const status =
@@ -162,24 +197,44 @@ export function RegisterGuardianPage() {
     <Container maxWidth="md" className="register-layout">
       <Paper elevation={2} className="register-card">
         <Typography variant="h5" className="register-title">
-          Registrar apoderado
+          Registrar
         </Typography>
         <Stack component="form" spacing={2} onSubmit={handleSubmit} className="register-form">
           <TextField
-            label="Nombre del apoderado"
+            label="Nombre y Apellido"
             value={name}
             onChange={(event) => setName(event.target.value)}
             required
           />
 
           <TextField
-            label="RUT del apoderado"
+            label="RUT"
             value={rut}
-            onChange={(event) => setRut(event.target.value)}
+            onChange={(event) => setRut(formatRut(event.target.value))}
             placeholder="12345678-5"
             error={rut.trim().length > 0 && !isGuardianRutValid}
-            helperText={rut.trim().length > 0 && !isGuardianRutValid ? 'RUT chileno invalido.' : 'Formato: 12345678-5'}
+            helperText={rut.trim().length > 0 && !isGuardianRutValid ? 'RUT chileno invalido.' : 'Sin Puntos y con guion'}
             required
+          />
+
+          <TextField
+              label="Dirección"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              placeholder="Ejemplo: Av. Vitacura 1230, Depto 40"
+              error={address.trim().length > 0 && address.trim().length < 2}
+              helperText={address.trim().length > 0 && address.trim().length < 2 ? 'Dirección muy corta.' : ''}
+              required
+          />
+
+          <TextField
+              label="Comuna"
+              value={commune}
+              onChange={(event) => setCommune(event.target.value)}
+              placeholder="Ejemplo: Santiago"
+              error={commune.trim().length > 0 && commune.trim().length < 2}
+              helperText={commune.trim().length > 0 && commune.trim().length < 2 ? 'Comuna muy corta.' : ''}
+              required
           />
 
           <TextField
@@ -193,73 +248,115 @@ export function RegisterGuardianPage() {
           />
 
           <TextField
-            label="Telefono"
+            label="Whatsapp"
             value={phone}
-            onChange={(event) => setPhone(event.target.value.replace(/[^+\d]/g, ''))}
-            placeholder="+56912345678"
-            slotProps={{ htmlInput: { inputMode: 'tel', pattern: '\\+569[0-9]{8}', maxLength: 12 } }}
+            onChange={(event) => setPhone(event.target.value.replace(/\D/g, ''))}
+            placeholder="12345678"
+            slotProps={{
+              input: {
+                startAdornment: <InputAdornment position="start">+569</InputAdornment>,
+              },
+              htmlInput: {
+                inputMode: 'numeric',
+                pattern: '[0-9]{8}',
+                maxLength: 8,
+              },
+            }}
             error={phone.trim().length > 0 && !isGuardianPhoneValid}
             helperText={
               phone.trim().length > 0 && !isGuardianPhoneValid
-                ? 'Debe ser +569 seguido de 8 digitos.'
-                : 'Formato obligatorio: +56912345678'
+                ? 'Debe tener exactamente 8 digitos.'
+                : 'Ejemplo: 12345678'
             }
             required
           />
 
-          <Box>
-            <Typography variant="subtitle1" className="register-section-title">
-              Cargas
-            </Typography>
-            <Stack spacing={1.2} className="register-dependents-list">
-              {dependents.map((dependent, index) => (
-                <Box key={`dependent-${index}`} className="register-dependent-row">
-                  <Box className="register-dependent-fields">
-                    <TextField
-                      fullWidth
-                      label={`Nombre carga ${index + 1}`}
-                      value={dependent.name}
-                      onChange={(event) => handleChangeDependent(index, 'name', event.target.value)}
-                    />
-                    <TextField
-                      fullWidth
-                      label={`RUT carga ${index + 1}`}
-                      value={dependent.rut}
-                      onChange={(event) => handleChangeDependent(index, 'rut', event.target.value)}
-                      placeholder="12345678-5"
-                      error={dependent.rut.trim().length > 0 && !isValidChileanRut(dependent.rut)}
-                      helperText={
-                        dependent.rut.trim().length > 0 && !isValidChileanRut(dependent.rut)
-                          ? 'RUT invalido'
-                          : 'Formato: 12345678-5'
-                      }
-                    />
+
+
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={isAccompanied}
+                onChange={(event) => setIsAccompanied(event.target.checked)}
+              />
+            }
+            label="¿Viene acompañado?"
+            style={{ alignSelf: 'flex-start', marginLeft: '2px' }}
+          />
+
+          {isAccompanied ? (
+            <Box>
+              <Typography variant="subtitle1" className="register-section-title">
+                Acompañantes
+              </Typography>
+              <Stack spacing={1.2} className="register-dependents-list">
+                {dependents.map((dependent, index) => (
+                  <Box key={`dependent-${index}`} className="register-dependent-row">
+                    <Box className="register-dependent-fields">
+                      <TextField
+                        fullWidth
+                        label={`Nombre acompañante ${index + 1}`}
+                        value={dependent.name}
+                        onChange={(event) => handleChangeDependent(index, 'name', event.target.value)}
+                      />
+                      <TextField
+                        fullWidth
+                        label={`RUT acompañante ${index + 1}`}
+                        value={dependent.rut}
+                        onChange={(event) => handleChangeDependent(index, 'rut', formatRut(event.target.value))}
+                        placeholder="12345678-5"
+                        error={dependent.rut.trim().length > 0 && !isValidChileanRut(dependent.rut)}
+                        helperText={
+                          dependent.rut.trim().length > 0 && !isValidChileanRut(dependent.rut)
+                            ? 'RUT invalido'
+                            : ''
+                        }
+                      />
+                      <TextField
+                        fullWidth
+                        label="Edad"
+                        value={dependent.age}
+                        onChange={(event) => handleChangeDependent(index, 'age', event.target.value.replace(/\D/g, ''))}
+                        placeholder="Ej: 8"
+                        slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 } }}
+                        error={dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < 0 || Number(dependent.age) > 130)}
+                        helperText={
+                          dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < 0 || Number(dependent.age) > 130)
+                            ? 'Edad invalida'
+                            : ''
+                        }
+                      />
+                    </Box>
+                    <IconButton
+                      color="error"
+                      onClick={() => handleRemoveDependent(index)}
+                      aria-label="Eliminar acompañante"
+                    >
+                      <DeleteOutlined />
+                    </IconButton>
                   </Box>
-                  <IconButton
-                    color="error"
-                    onClick={() => handleRemoveDependent(index)}
-                    disabled={dependents.length === 1}
-                    aria-label="Eliminar carga"
-                  >
-                    <DeleteOutlined />
-                  </IconButton>
-                </Box>
-              ))}
-            </Stack>
+                ))}
+                {dependents.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" style={{ fontStyle: 'italic', marginBlock: '0.5rem' }}>
+                    Sin acompañantes agregados. Puedes agregar hasta 3 acompañantes opcionalmente.
+                  </Typography>
+                ) : null}
+              </Stack>
 
-            <Box className="register-divider" />
+              <Box className="register-divider" />
 
-            <Button
-              type="button"
-              variant="outlined"
-              startIcon={<Add />}
-              className="register-add-dependent-btn"
-              disabled={!canAddDependent}
-              onClick={handleAddDependent}
-            >
-              Agregar carga ({dependents.length}/{MAX_DEPENDENTS})
-            </Button>
-          </Box>
+              <Button
+                type="button"
+                variant="outlined"
+                startIcon={<Add />}
+                className="register-add-dependent-btn"
+                disabled={!canAddDependent}
+                onClick={handleAddDependent}
+              >
+                Agregar Acompañante ({dependents.length}/{MAX_DEPENDENTS})
+              </Button>
+            </Box>
+          ) : null}
 
           <Button
             type="submit"
@@ -267,7 +364,7 @@ export function RegisterGuardianPage() {
             disabled={!isValid || submitting}
             className="register-submit-btn"
           >
-            {submitting ? 'Guardando...' : 'Crear apoderado'}
+            {submitting ? 'Guardando...' : 'Crear registro'}
           </Button>
         </Stack>
       </Paper>

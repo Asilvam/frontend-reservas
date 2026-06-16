@@ -46,7 +46,7 @@
 .register-dependent-fields {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 2fr 2fr 1.2fr;
   gap: 0.75rem;
 }
 

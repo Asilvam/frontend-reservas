@@ -2,11 +2,9 @@ import type { ReactElement } from 'react';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import AppNavbar from './components/AppNavbar';
-import DashboardPage from './pages/DashboardPage';
 import ProtectedLayout from './components/ProtectedLayout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
-import RegisterGuardianPage from './pages/RegisterGuardianPage';
 import SelvaPage from './pages/SelvaPage';
 
 const INACTIVITY_TIMEOUT_MS = 2 * 60 * 1000;
@@ -53,7 +51,11 @@ function RequireAuth({ children }: { children: ReactElement }) {
 function App() {
   const token = localStorage.getItem('accessToken');
   const location = useLocation();
-  const showNavbar = location.pathname !== '/home' && location.pathname !== '/selva';
+  const showNavbar =
+    location.pathname !== '/home' &&
+    location.pathname !== '/selva' &&
+    location.pathname !== '/selva/register' &&
+    location.pathname !== '/register';
 
   return (
     <>
@@ -61,14 +63,10 @@ function App() {
       <Routes>
         <Route path="/home" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<Navigate to="/selva" replace />} />
         <Route path="/selva" element={<SelvaPage />} />
-        <Route
-          path="/register"
-          element={
-            token ? <Navigate to="/guardians/new" replace /> : <RegisterGuardianPage />
-          }
-        />
+        <Route path="/selva/register" element={<Navigate to="/selva" replace />} />
+        <Route path="/register" element={<Navigate to="/selva" replace />} />
         <Route
           element={(
             <RequireAuth>
@@ -78,7 +76,7 @@ function App() {
         >
           <Route
             path="/guardians/new"
-            element={<RegisterGuardianPage />}
+            element={<Navigate to="/selva" replace />}
           />
         </Route>
         <Route

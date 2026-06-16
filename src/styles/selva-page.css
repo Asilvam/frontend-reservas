@@ -245,3 +245,420 @@
     max-height: 54px;
   }
 }
+
+/* ==========================================
+   WIZARD FLOW & STEPPER STYLES
+   ========================================== */
+
+.selva-wizard-card {
+  width: 100%;
+  padding: 1.6rem 1.8rem;
+  border-radius: 0 0 22px 22px;
+  margin-top: -6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(249, 250, 251, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-top: none;
+  box-shadow: 0 20px 40px -28px rgba(15, 23, 42, 0.42);
+}
+
+.selva-stepper-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0.65rem;
+}
+
+.selva-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 320px;
+  margin-block: 0.5rem;
+}
+
+.selva-step-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  border: 2px solid #cbd5e1;
+  transition: all 0.3s ease;
+}
+
+.selva-step-dot.active {
+  background: #0f766e;
+  color: #ffffff;
+  border-color: #0d9488;
+  box-shadow: 0 0 10px rgba(15, 118, 110, 0.3);
+}
+
+.selva-step-line {
+  flex: 1;
+  height: 3px;
+  background: #cbd5e1;
+  transition: all 0.3s ease;
+  margin-inline: 4px;
+}
+
+.selva-step-line.active {
+  background: #0f766e;
+}
+
+.selva-stepper-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 360px;
+}
+
+.selva-step-label {
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  color: #94a3b8;
+  text-align: center;
+  flex: 1;
+}
+
+.selva-step-label.active {
+  color: #0f766e;
+  font-weight: 800 !important;
+}
+
+.selva-step-divider {
+  margin-block: 0.85rem !important;
+  border-color: rgba(148, 163, 184, 0.2) !important;
+}
+
+.selva-step-content {
+  padding-top: 0.4rem;
+}
+
+.selva-step-title {
+  font-weight: 800 !important;
+  color: #0f766e;
+  margin-bottom: 0.85rem !important;
+  font-size: 1.15rem !important;
+}
+
+.selva-step-title.centered {
+  text-align: center;
+}
+
+/* Dependents inside Wizard */
+.selva-wizard-dependents {
+  padding: 0.95rem;
+  background: rgba(241, 245, 249, 0.6);
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  border-radius: 14px;
+  margin-top: 0.5rem;
+}
+
+.selva-wizard-section-title {
+  font-weight: 700 !important;
+  color: #0f766e;
+  margin-bottom: 0.65rem !important;
+}
+
+.selva-wizard-dependent-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-bottom: 0.6rem;
+}
+
+.selva-wizard-dependent-fields {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 2fr 2fr 1.2fr;
+  gap: 0.65rem;
+}
+
+.selva-wizard-divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.4), rgba(148, 163, 184, 0.1));
+  margin-block: 0.75rem;
+}
+
+.selva-wizard-add-btn {
+  width: 100%;
+  padding: 0.55rem 1rem !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  color: #0f766e !important;
+  border-color: #2dd4bf !important;
+  background: #ccfbf1 !important;
+}
+
+.selva-wizard-add-btn:hover {
+  border-color: #0d9488 !important;
+  background: #99f6e4 !important;
+}
+
+/* Actions panel */
+.selva-wizard-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.2rem;
+}
+
+.selva-wizard-actions.space-between {
+  justify-content: space-between;
+}
+
+.selva-wizard-next-btn,
+.selva-wizard-confirm-btn {
+  min-width: 140px;
+  min-height: 44px;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  background: linear-gradient(135deg, #0f766e, #0e7490) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(15, 118, 110, 0.3) !important;
+}
+
+.selva-wizard-next-btn:hover:not(:disabled),
+.selva-wizard-confirm-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0d9488, #0f766e) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(15, 118, 110, 0.45) !important;
+}
+
+.selva-wizard-back-btn {
+  min-width: 120px;
+  min-height: 44px;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
+}
+
+.selva-wizard-back-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Step 2 specific styles */
+.selva-wizard-loading {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.selva-wizard-date-control {
+  margin-top: 0.35rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.selva-wizard-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  margin-top: 0.65rem;
+}
+
+.spot-schedule-btn.selected-slot {
+  background: #115e59 !important;
+  border-color: #134e4a !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(17, 94, 89, 0.45) !important;
+}
+
+.spot-schedule-btn.selected-slot .spot-time-label {
+  color: #ffffff !important;
+}
+
+/* Step 3 Summary specific styles */
+.selva-summary-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 16px;
+  padding: 1.25rem 1.4rem;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.selva-summary-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.selva-summary-section-title {
+  font-size: 0.88rem !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  color: #0f766e;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.55rem !important;
+}
+
+.selva-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.55rem 0.85rem;
+}
+
+.selva-summary-item {
+  font-size: 0.9rem !important;
+  color: #334155;
+  display: flex;
+  gap: 6px;
+}
+
+.selva-summary-item .label {
+  font-weight: 700;
+  color: #64748b;
+  min-width: 70px;
+}
+
+.selva-summary-item .value {
+  font-weight: 500;
+}
+
+.selva-summary-dependent-row {
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.selva-summary-dependent-row .dep-name {
+  font-size: 0.92rem !important;
+  color: #1e293b;
+}
+
+.selva-summary-dependent-row .dep-rut {
+  font-size: 0.82rem !important;
+  color: #64748b;
+}
+
+.selva-summary-section.schedule-highlight {
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-radius: 12px;
+  padding: 0.85rem;
+}
+
+.selva-summary-schedule-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.2rem;
+}
+
+.selva-summary-schedule-icon {
+  font-size: 2.2rem !important;
+  color: #0d9488;
+}
+
+.selva-summary-date {
+  font-size: 1.05rem !important;
+  font-weight: 800 !important;
+  color: #0f766e;
+  line-height: 1.15;
+}
+
+.selva-summary-time {
+  font-size: 0.85rem !important;
+  color: #334155;
+  margin-top: 2px;
+}
+
+.selva-wizard-submit-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-block: 0.5rem;
+}
+
+/* Responsive design adjustments for Wizard */
+@media (max-width: 900px) {
+  .selva-wizard-card {
+    max-width: 620px;
+  }
+}
+
+@media (max-width: 768px) {
+  .selva-wizard-card {
+    padding: 1.1rem 1rem;
+  }
+
+  .selva-wizard-schedule-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .selva-wizard-dependent-fields {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .selva-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+
+  .selva-summary-dependent-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .selva-wizard-schedule-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Checkboxes de consentimiento */
+.selva-consent-container {
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.25rem !important;
+  padding-inline: 0.25rem;
+}
+
+.selva-checkbox-label {
+  align-items: flex-start !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  gap: 4px;
+}
+
+.selva-checkbox-label .MuiFormControlLabel-label {
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  line-height: 1.4 !important;
+  margin-top: 7px; /* Align text vertically with the checkbox */
+  letter-spacing: -0.01em;
+}
+
+.selva-custom-checkbox {
+  color: #ef4444 !important; /* Border color when unchecked (red) */
+  padding: 6px !important;
+}
+
+.selva-custom-checkbox.Mui-checked {
+  color: #0f766e !important; /* Color when checked (teal) */
+}
+

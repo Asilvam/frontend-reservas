@@ -11,6 +11,7 @@ export interface Dependent {
   _id: string;
   name: string;
   rut: string;
+  age: number;
 }
 
 export interface Guardian {
@@ -19,7 +20,11 @@ export interface Guardian {
   rut: string;
   email: string;
   phone: string;
+  address?: string;
+  commune?: string;
   dependents: Dependent[];
+  acceptMarketing?: boolean;
+  acceptDataTerms?: boolean;
 }
 
 export interface LoginResponse {
@@ -47,5 +52,9 @@ export interface CreateGuardianPayload {
   rut: string;
   email: string;
   phone: string;
-  dependents: { name: string; rut: string }[];
+  address?: string;
+  commune?: string;
+  dependents: { name: string; rut: string; age: number }[];
+  acceptMarketing?: boolean;
+  acceptDataTerms?: boolean;
 }

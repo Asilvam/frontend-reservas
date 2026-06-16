@@ -1,4 +1,4 @@
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import fondoImage from '../assets/Fondo.jpg';
 import institutionalLogos from '../assets/logos.png';
@@ -10,7 +10,7 @@ import '../styles/home-page.css';
 
 export function HomePage() {
   const navigate = useNavigate();
-  const isLoggedIn = Boolean(localStorage.getItem('accessToken'));
+  // const isLoggedIn = Boolean(localStorage.getItem('accessToken'));
 
   return (
     <Box
@@ -30,7 +30,7 @@ export function HomePage() {
           <Button
             variant="contained"
             className="home-campaign-btn"
-            onClick={() => navigate('/selva?date=2026-06-18')}
+            onClick={() => navigate('/selva')}
           >
             Reservar Selva Viva
           </Button>
@@ -48,11 +48,6 @@ export function HomePage() {
         <Box component="img" src={institutionalLogos} alt="Logos institucionales" className="home-footer-logos" />
       </Box>
 
-      {!isLoggedIn ? (
-        <Typography variant="body2" className="home-public-hint">
-          Puedes entrar a ver horarios sin iniciar sesion. Para reservar debes iniciar sesion.
-        </Typography>
-      ) : null}
     </Box>
   );
 }
