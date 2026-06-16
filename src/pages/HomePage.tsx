@@ -21,7 +21,6 @@ export function HomePage() {
     >
       <Box className="home-header-wrap">
         <Box component="img" src={superiorAlcaldia} alt="Superior Alcaldia" className="home-header-image" />
-        <Box component="img" src={institutionalLogos} alt="Logos institucionales" className="home-header-logos" />
         <Box component="img" src={mainLogo} alt="Llueve en Quilicura" className="home-main-logo" />
       </Box>
 

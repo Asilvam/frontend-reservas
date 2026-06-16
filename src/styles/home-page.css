@@ -49,9 +49,11 @@
 }
 
 .home-campaign-card {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: 30px;
-  border: 2px solid rgba(255, 255, 255, 0.95);
+  border: 2px solid rgba(255, 255, 255, 0.45);
   box-shadow: 0 16px 36px -24px rgba(30, 41, 59, 0.65);
   padding: 0.48rem 0.48rem 1rem;
   display: flex;
