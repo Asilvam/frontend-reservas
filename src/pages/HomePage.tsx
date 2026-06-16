@@ -1,5 +1,11 @@
-import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import fondoImage from '../assets/Fondo.jpg';
+import institutionalLogos from '../assets/logos.png';
+import mainLogo from '../assets/logo.png';
+import selvaVivaCard from '../assets/BotonSelvaViva.png';
+import hieloCard from '../assets/BotonPistadehielo.png';
+import superiorAlcaldia from '../assets/superioralcaldia.png';
 import '../styles/home-page.css';
 
 export function HomePage() {
@@ -7,31 +13,53 @@ export function HomePage() {
   const isLoggedIn = Boolean(localStorage.getItem('accessToken'));
 
   return (
-    <Box className="home-layout">
-      <Paper elevation={2} className="home-card">
-        <Stack spacing={2}>
-          <Typography variant="h4" className="home-title">
-            Sistema de Reservas
-          </Typography>
-          <Typography color="text.secondary" className="home-copy">
-            Revisa los bloques disponibles y confirma tu asistencia de forma segura.
-          </Typography>
+    <Box
+      className="home-layout"
+      style={{
+        backgroundImage: `url(${fondoImage})`,
+      }}
+    >
+      <Box className="home-header-wrap">
+        <Box component="img" src={superiorAlcaldia} alt="Superior Alcaldia" className="home-header-image" />
+        <Box component="img" src={institutionalLogos} alt="Logos institucionales" className="home-header-logos" />
+        <Box component="img" src={mainLogo} alt="Llueve en Quilicura" className="home-main-logo" />
+      </Box>
 
-          {isLoggedIn ? (
-            <Button variant="contained" onClick={() => navigate('/dashboard')} className="home-primary-btn">
-              Ir al dashboard
-            </Button>
-          ) : (
-            <Typography className="home-register-hint">
-              Si no estas registrado, completa el formulario de inscripcion de apoderado y cargas.
-            </Typography>
-          )}
-
-          <Button variant="outlined" color="inherit" onClick={() => navigate('/register')} className="home-secondary-btn">
-            Formulario de inscripcion
+      <Box className="home-campaigns-grid">
+        <Box className="home-campaign-card home-campaign-card-active">
+          <Box component="img" className="home-campaign-image" src={selvaVivaCard} alt="Campana Selva Viva" />
+          <Typography className="home-campaign-copy">
+            Cupos limitados hasta agotar stock - Fechas disponibles: 25 al 28 de junio
+          </Typography>
+          <Button
+            variant="contained"
+            className="home-campaign-btn"
+            onClick={() => navigate('/selva?date=2026-06-18')}
+          >
+            Reservar Selva Viva
           </Button>
-        </Stack>
-      </Paper>
+        </Box>
+
+        <Box className="home-campaign-card home-campaign-card-upcoming" aria-label="Campana Pista de Hielo bloqueada">
+          <Box component="img" className="home-campaign-image" src={hieloCard} alt="Campana Pista de Hielo" />
+          <Typography className="home-campaign-copy">
+            Cupos limitados hasta agotar stock - Fechas disponibles: 30 junio al 05 de julio
+          </Typography>
+          <Button variant="contained" className="home-campaign-btn home-campaign-btn-disabled" disabled>
+            PROXIMAMMENTE
+          </Button>
+        </Box>
+      </Box>
+
+      <Box className="home-footer-logos-wrap">
+        <Box component="img" src={institutionalLogos} alt="Logos institucionales" className="home-footer-logos" />
+      </Box>
+
+      {!isLoggedIn ? (
+        <Typography variant="body2" className="home-public-hint">
+          Puedes entrar a ver horarios sin iniciar sesion. Para reservar debes iniciar sesion.
+        </Typography>
+      ) : null}
     </Box>
   );
 }

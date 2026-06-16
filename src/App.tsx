@@ -7,6 +7,7 @@ import ProtectedLayout from './components/ProtectedLayout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterGuardianPage from './pages/RegisterGuardianPage';
+import SelvaPage from './pages/SelvaPage';
 
 const INACTIVITY_TIMEOUT_MS = 2 * 60 * 1000;
 
@@ -44,18 +45,24 @@ function RequireAuth({ children }: { children: ReactElement }) {
     };
   }, [location.pathname, navigate, token]);
 
-  return token ? children : <Navigate to="/login" replace />;
+  const redirectTo = `${location.pathname}${location.search}`;
+
+  return token ? children : <Navigate to="/login" replace state={{ redirectTo }} />;
 }
 
 function App() {
   const token = localStorage.getItem('accessToken');
+  const location = useLocation();
+  const showNavbar = location.pathname !== '/home' && location.pathname !== '/selva';
 
   return (
     <>
-      <AppNavbar />
+      {showNavbar ? <AppNavbar /> : null}
       <Routes>
         <Route path="/home" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/selva" element={<SelvaPage />} />
         <Route
           path="/register"
           element={
@@ -69,10 +76,6 @@ function App() {
             </RequireAuth>
           )}
         >
-          <Route
-            path="/dashboard"
-            element={<DashboardPage />}
-          />
           <Route
             path="/guardians/new"
             element={<RegisterGuardianPage />}

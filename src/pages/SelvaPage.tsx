@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Alert, Box, CircularProgress, Container, Stack } from '@mui/material';
+import { Alert, Box, CircularProgress, Stack } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { SpotSelector } from '../components/SpotSelector';
 import { api, socket } from '../services/api';
 import type { Guardian, ReservationPayload, ReservationSummary, Schedule } from '../types';
 import { isValidDateKey, toChileDateKey } from '../utils/datetime';
-import '../styles/dashboard-page.css';
+import fondoImage from '../assets/Fondo.jpg';
+import selvaWebHeader from '../assets/Selvaweb.png';
+import institutionalLogos from '../assets/logos.png';
+import '../styles/selva-page.css';
 
-export function DashboardPage() {
+export function SelvaPage() {
   const [searchParams] = useSearchParams();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [guardian, setGuardian] = useState<Guardian | null>(null);
@@ -106,11 +109,8 @@ export function DashboardPage() {
           {},
         );
 
-        const nextReservedDateKeys = Object.keys(nextReservationsByDate);
-
-        setReservedDateKeys(nextReservedDateKeys);
+        setReservedDateKeys(Object.keys(nextReservationsByDate));
         setReservationsByDate(nextReservationsByDate);
-
       } catch (error: unknown) {
         const status = getStatusCode(error);
 
@@ -233,14 +233,6 @@ export function DashboardPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <Box className="dashboard-loading">
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   const readOnlyGuardian: Guardian = {
     _id: 'guest',
     name: 'Invitado',
@@ -251,25 +243,43 @@ export function DashboardPage() {
   };
 
   return (
-    <Container maxWidth="md" className="dashboard-layout">
-      <Stack spacing={2}>
-        {guardian || !isLoggedIn ? (
-          <SpotSelector
-            schedules={schedules}
-            guardian={guardian ?? readOnlyGuardian}
-            onSubmit={handleReservationSubmit}
-            submitting={submitting}
-            reservedDateKeys={reservedDateKeys}
-            reservationsByDate={reservationsByDate}
-            preferredDateKey={preferredDateKey}
-            readOnly={!isLoggedIn}
-          />
+    <Box className="selva-layout" style={{ backgroundImage: `url(${fondoImage})` }}>
+      <Box className="selva-header-wrap">
+        <Box component="img" src={selvaWebHeader} alt="Selva Viva" className="selva-header-image" />
+      </Box>
+
+      <Box className="selva-content-wrap">
+        {loading ? (
+          <Box className="selva-loading">
+            <CircularProgress />
+          </Box>
         ) : (
-          <Alert severity="warning">No se encontro perfil de apoderado. Inicia sesion nuevamente.</Alert>
+          <Stack spacing={2}>
+            {guardian || !isLoggedIn ? (
+              <Box className="selva-selector-shell">
+                <SpotSelector
+                  schedules={schedules}
+                  guardian={guardian ?? readOnlyGuardian}
+                  onSubmit={handleReservationSubmit}
+                  submitting={submitting}
+                  reservedDateKeys={reservedDateKeys}
+                  reservationsByDate={reservationsByDate}
+                  preferredDateKey={preferredDateKey}
+                  readOnly={!isLoggedIn}
+                />
+              </Box>
+            ) : (
+              <Alert severity="warning">No se encontro perfil de apoderado. Inicia sesion nuevamente.</Alert>
+            )}
+          </Stack>
         )}
-      </Stack>
-    </Container>
+      </Box>
+
+      <Box className="selva-footer-wrap">
+        <Box component="img" src={institutionalLogos} alt="Logos institucionales" className="selva-footer-logos" />
+      </Box>
+    </Box>
   );
 }
 
-export default DashboardPage;
+export default SelvaPage;

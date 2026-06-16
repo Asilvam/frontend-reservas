@@ -32,6 +32,7 @@ function getTokenPayload(token: string) {
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const redirectTo = (location.state as { redirectTo?: string } | null)?.redirectTo;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -96,7 +97,7 @@ export function LoginPage() {
         });
       }
 
-      navigate('/dashboard', { replace: true });
+      navigate(redirectTo || '/dashboard', { replace: true });
     } catch {
       void Swal.fire({
         icon: 'error',

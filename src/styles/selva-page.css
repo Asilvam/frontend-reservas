@@ -1,0 +1,247 @@
+.selva-layout {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.85rem 0.85rem calc(1.1rem + env(safe-area-inset-bottom));
+}
+
+.selva-header-wrap {
+  width: 100%;
+  max-width: 1120px;
+  margin-bottom: 0;
+}
+
+.selva-header-image {
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  background: #ffffff;
+  border-radius: 20px 20px 0 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 18px 34px -24px rgba(15, 23, 42, 0.45);
+}
+
+.selva-content-wrap {
+  width: 100%;
+  max-width: 1120px;
+  flex: 1;
+}
+
+.selva-selector-shell {
+  width: 100%;
+}
+
+.selva-loading {
+  min-height: 52vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.selva-selector-shell .spot-card {
+  width: 100%;
+  border-radius: 0 0 22px 22px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: -6px;
+  background: linear-gradient(180deg, rgba(249, 250, 251, 0.98), rgba(241, 245, 249, 0.97));
+  border-color: rgba(148, 163, 184, 0.45);
+  box-shadow: 0 20px 40px -28px rgba(15, 23, 42, 0.42);
+}
+
+.selva-selector-shell .spot-date-wrap {
+  display: grid;
+  grid-template-columns: minmax(320px, 50%) 1fr;
+  gap: 0.85rem 1rem;
+  align-items: start;
+}
+
+.selva-selector-shell .spot-date-control {
+  grid-column: 1;
+  grid-row: 1;
+  max-width: 100%;
+  margin-bottom: 0;
+}
+
+.selva-selector-shell .spot-helper-text {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  padding-top: 0.1rem;
+}
+
+.selva-selector-shell .spot-active-reservation-banner {
+  margin-top: 0;
+}
+
+.selva-selector-shell .spot-readonly-banner {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 56px;
+  max-height: 56px;
+  padding: 0.5rem 0.75rem;
+  overflow: hidden;
+}
+
+.selva-selector-shell .spot-readonly-banner .spot-active-reservation-icon {
+  margin-top: 0;
+}
+
+.selva-selector-shell .spot-readonly-banner .spot-active-reservation-title {
+  font-size: 0.95rem;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.selva-selector-shell .spot-reserved-banner {
+  grid-row: 3;
+  grid-column: 1 / -1;
+}
+
+.selva-selector-shell .spot-schedule-grid {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.35rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.selva-selector-shell .spot-schedule-grid::-webkit-scrollbar {
+  width: 9px;
+}
+
+.selva-selector-shell .spot-schedule-grid::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+
+.selva-selector-shell .spot-schedule-grid::-webkit-scrollbar-thumb {
+  background: #1e1b4b;
+  border-radius: 999px;
+}
+
+.selva-footer-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-top: 0.65rem;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.selva-footer-logos {
+  width: min(95vw, 450px);
+  max-height: 64px;
+  object-fit: contain;
+  display: block;
+}
+
+@media (min-width: 901px) {
+  .selva-layout {
+    padding-top: 1.1rem;
+    padding-inline: 0.5rem;
+    padding-bottom: 1.4rem;
+  }
+
+  .selva-header-wrap {
+    max-width: 1120px;
+  }
+
+  .selva-header-image {
+    max-height: 280px;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .selva-content-wrap {
+    max-width: 1120px;
+  }
+
+  .selva-selector-shell .spot-card {
+    padding: 1.4rem 1.55rem 1.55rem;
+    border-radius: 0 0 24px 24px;
+  }
+
+  .selva-selector-shell .spot-schedule-grid {
+    max-height: 560px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .selva-layout {
+    padding: 0.55rem 0.5rem 0.85rem;
+  }
+
+  .selva-header-wrap {
+    max-width: 620px;
+  }
+
+  .selva-header-image {
+    max-height: 206px;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .selva-content-wrap {
+    max-width: 620px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .selva-selector-shell .spot-schedule-grid {
+    min-height: 0;
+    max-height: min(48dvh, 410px);
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .selva-selector-shell .spot-schedule-btn {
+    min-height: 62px;
+    padding: 0.42rem 0.55rem;
+  }
+
+  .selva-selector-shell .spot-schedule-content {
+    min-height: 50px;
+  }
+
+  .selva-selector-shell .spot-date-wrap {
+    display: block;
+  }
+
+  .selva-selector-shell .spot-readonly-banner,
+  .selva-selector-shell .spot-reserved-banner {
+    grid-column: auto;
+  }
+
+  .selva-selector-shell .spot-readonly-banner {
+    margin-top: 0.85rem;
+    margin-bottom: 0.95rem;
+    min-height: auto;
+    max-height: none;
+    padding: 0.7rem 0.8rem;
+  }
+
+  .selva-selector-shell .spot-helper-text {
+    margin-top: 0;
+    padding-top: 0;
+  }
+
+  .selva-selector-shell .spot-date-control {
+    max-width: 100%;
+  }
+
+  .selva-footer-wrap {
+    padding-top: 0.45rem;
+  }
+
+  .selva-footer-logos {
+    max-height: 54px;
+  }
+}

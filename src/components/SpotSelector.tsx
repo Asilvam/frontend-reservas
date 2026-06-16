@@ -20,6 +20,7 @@ import {
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import Swal from 'sweetalert2';
 import type { Guardian, ReservationPayload, ReservationSummary, Schedule } from '../types';
+import { formatChileDateLabel, formatChileTime, toChileDateKey } from '../utils/datetime';
 import '../styles/spot-selector.css';
 
 type SpotSelectorProps = {
@@ -29,6 +30,8 @@ type SpotSelectorProps = {
   submitting?: boolean;
   reservedDateKeys?: string[];
   reservationsByDate?: Record<string, ReservationSummary>;
+  preferredDateKey?: string;
+  readOnly?: boolean;
 };
 
 export function SpotSelector({
@@ -38,6 +41,8 @@ export function SpotSelector({
   submitting = false,
   reservedDateKeys = [],
   reservationsByDate = {},
+  preferredDateKey,
+  readOnly = false,
 }: SpotSelectorProps) {
   const [selectedScheduleId, setSelectedScheduleId] = useState('');
   const [selectedDateKey, setSelectedDateKey] = useState('');
@@ -46,34 +51,13 @@ export function SpotSelector({
   const [selectedDependents, setSelectedDependents] = useState<string[]>([]);
   const totalSpotsByScheduleRef = useRef<Record<string, number>>({});
 
-  const getDateKey = (startTime: string) => {
-    const date = new Date(startTime);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const formatDateLabel = (dateKey: string) => {
-    const [year, month, day] = dateKey.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date
-      .toLocaleDateString('es-ES', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-      .replace(/^\w/, (char) => char.toUpperCase());
-  };
-
   const availableDateKeys = useMemo(() => {
     const now = Date.now();
     const uniqueDates = Array.from(
       new Set(
         schedules
           .filter((schedule) => new Date(schedule.startTime).getTime() > now)
-          .map((schedule) => getDateKey(schedule.startTime)),
+          .map((schedule) => toChileDateKey(schedule.startTime)),
       ),
     );
     return uniqueDates.sort((a, b) => a.localeCompare(b));
@@ -84,7 +68,7 @@ export function SpotSelector({
     const now = Date.now();
     return schedules.filter(
       (schedule) =>
-        getDateKey(schedule.startTime) === selectedDateKey && new Date(schedule.startTime).getTime() > now,
+        toChileDateKey(schedule.startTime) === selectedDateKey && new Date(schedule.startTime).getTime() > now,
     );
   }, [schedules, selectedDateKey]);
 
@@ -103,10 +87,15 @@ export function SpotSelector({
       return;
     }
 
+    if (preferredDateKey && availableDateKeys.includes(preferredDateKey)) {
+      setSelectedDateKey(preferredDateKey);
+      return;
+    }
+
     if (!selectedDateKey || !availableDateKeys.includes(selectedDateKey)) {
       setSelectedDateKey(availableDateKeys[0]);
     }
-  }, [availableDateKeys, selectedDateKey]);
+  }, [availableDateKeys, preferredDateKey, selectedDateKey]);
 
   useEffect(() => {
     setSelectedScheduleId('');
@@ -132,15 +121,9 @@ export function SpotSelector({
     : undefined;
 
   const reservedTimeRange = reservedSchedule
-    ? `${new Date(reservedSchedule.startTime).toLocaleTimeString('es-CL', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })}-${new Date(
-        new Date(reservedSchedule.startTime).getTime() + reservedSchedule.durationMinutes * 60_000,
-      ).toLocaleTimeString('es-CL', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })}`
+    ? `${formatChileTime(reservedSchedule.startTime)}-${formatChileTime(
+        new Date(new Date(reservedSchedule.startTime).getTime() + reservedSchedule.durationMinutes * 60_000),
+      )}`
     : 'Horario ya confirmado';
 
   const companionNames = reservedEntry?.attendingDependents?.map((dependent) => dependent.name) ?? [];
@@ -169,7 +152,7 @@ export function SpotSelector({
   };
 
   const handleSubmit = async () => {
-    if (submitting) return;
+    if (submitting || readOnly) return;
 
     if (isZeroSelection) {
       void Swal.fire({
@@ -238,21 +221,32 @@ export function SpotSelector({
           >
             {availableDateKeys.map((dateKey) => (
               <MenuItem key={dateKey} value={dateKey}>
-                {formatDateLabel(dateKey)}
-              </MenuItem>
-            ))}
-          </Select>
+                 {formatChileDateLabel(dateKey)}
+               </MenuItem>
+             ))}
+           </Select>
         </FormControl>
+
+        {readOnly ? (
+          <Box className="spot-active-reservation-banner spot-readonly-banner" role="status" aria-live="polite">
+            <WarningAmberRoundedIcon className="spot-active-reservation-icon" />
+            <Box>
+              <Typography className="spot-active-reservation-title">
+                Modo solo lectura: revisa horarios y cupos. Inicia sesion para reservar.
+              </Typography>
+            </Box>
+          </Box>
+        ) : null}
         <Typography color="text.secondary" className="spot-helper-text">
           Selecciona el horario que deseas.
         </Typography>
 
         {hasReservationForSelectedDate ? (
-          <Box className="spot-active-reservation-banner" role="status" aria-live="polite">
+          <Box className="spot-active-reservation-banner spot-reserved-banner" role="status" aria-live="polite">
             <WarningAmberRoundedIcon className="spot-active-reservation-icon" />
             <Box>
               <Typography className="spot-active-reservation-title">iTienes una reserva activa!</Typography>
-              <Typography className="spot-active-reservation-line">Fecha: {formatDateLabel(selectedDateKey)}</Typography>
+              <Typography className="spot-active-reservation-line">Fecha: {formatChileDateLabel(selectedDateKey)}</Typography>
               <Typography className="spot-active-reservation-line">Turno: {reservedTimeRange}</Typography>
               <Typography className="spot-active-reservation-line">Apoderado: {guardianLabel}</Typography>
               <Typography className="spot-active-reservation-line">Acompanantes: {companionLabel}</Typography>
@@ -284,13 +278,14 @@ export function SpotSelector({
           return (
             <Button
               key={schedule._id}
-              variant={isSelected ? 'contained' : 'outlined'}
-              color={isSoldOut ? 'inherit' : 'primary'}
-              disabled={isSoldOut || hasReservationForSelectedDate}
-              onClick={() => {
-                setSelectedScheduleId(schedule._id);
-                setGuardianParticipates(true);
-                setSelectedDependents(
+               variant={isSelected ? 'contained' : 'outlined'}
+               color={isSoldOut ? 'inherit' : 'primary'}
+               disabled={isSoldOut || hasReservationForSelectedDate || readOnly}
+               onClick={() => {
+                 if (readOnly) return;
+                 setSelectedScheduleId(schedule._id);
+                 setGuardianParticipates(true);
+                 setSelectedDependents(
                   guardian.dependents
                     .slice(0, schedule.maxDependentsPerReservation)
                     .map((dependent) => dependent._id),
@@ -302,7 +297,7 @@ export function SpotSelector({
               <Box className="spot-schedule-content">
                 <Box className="spot-time-column">
                   <Typography variant="h6" component="span" className="spot-time-label">
-                    {date.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                    {formatChileTime(date)}
                   </Typography>
                   {isSoldOut ? (
                     <Typography variant="caption" component="span" className="spot-soldout-label">
@@ -331,7 +326,7 @@ export function SpotSelector({
         </Typography>
       ) : null}
 
-      {selectedSchedule ? (
+      {selectedSchedule && !readOnly ? (
         <Dialog
           open={isAttendanceModalOpen}
           onClose={submitting ? undefined : () => setIsAttendanceModalOpen(false)}
