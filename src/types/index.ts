@@ -23,6 +23,8 @@ export interface Guardian {
   address?: string;
   commune?: string;
   villa?: string;
+  emergencyName?: string;
+  emergencyPhone?: string;
   dependents: Dependent[];
   acceptMarketing?: boolean;
   acceptDataTerms?: boolean;
@@ -56,6 +58,8 @@ export interface CreateGuardianPayload {
   address?: string;
   commune?: string;
   villa?: string;
+  emergencyName?: string;
+  emergencyPhone?: string;
   dependents: { name: string; rut: string; age: number }[];
   acceptMarketing?: boolean;
   acceptDataTerms?: boolean;
