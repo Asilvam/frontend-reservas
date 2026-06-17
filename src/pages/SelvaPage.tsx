@@ -100,6 +100,7 @@ export function SelvaPage() {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [commune, setCommune] = useState('');
+  const [villa, setVilla] = useState('');
   const [isAccompanied, setIsAccompanied] = useState(false);
   const [dependents, setDependents] = useState<DependentFormItem[]>([{ ...EMPTY_DEPENDENT }]);
   const [acceptMarketing, setAcceptMarketing] = useState(false);
@@ -278,6 +279,7 @@ export function SelvaPage() {
         phone: `+569${phone.trim()}`,
         address: address.trim(),
         commune: commune.trim(),
+        villa: villa.trim() || undefined,
         dependents: activeDependents.map((dep) => ({
           name: dep.name.trim(),
           rut: dep.rut.trim(),
@@ -343,6 +345,7 @@ export function SelvaPage() {
       setPhone('');
       setAddress('');
       setCommune('');
+      setVilla('');
       setIsAccompanied(false);
       setDependents([{ ...EMPTY_DEPENDENT }]);
       setSelectedScheduleId('');
@@ -459,6 +462,16 @@ export function SelvaPage() {
                 error={commune.trim().length > 0 && commune.trim().length < 2}
                 helperText={commune.trim().length > 0 && commune.trim().length < 2 ? 'Comuna muy corta.' : ''}
                 required
+                fullWidth
+              />
+
+              <TextField
+                label="Villa / Población"
+                value={villa}
+                onChange={(event) => setVilla(event.target.value)}
+                placeholder="Ejemplo: Villa Las Flores"
+                error={villa.trim().length > 0 && villa.trim().length < 2}
+                helperText={villa.trim().length > 0 && villa.trim().length < 2 ? 'Nombre muy corto.' : ''}
                 fullWidth
               />
 
@@ -734,6 +747,7 @@ export function SelvaPage() {
                     <Box className="selva-summary-item"><span className="label">Nombre:</span> <span className="value">{name}</span></Box>
                     <Box className="selva-summary-item"><span className="label">RUT:</span> <span className="value">{rut}</span></Box>
                     <Box className="selva-summary-item"><span className="label">Comuna:</span> <span className="value">{commune}</span></Box>
+                    {villa && <Box className="selva-summary-item"><span className="label">Villa:</span> <span className="value">{villa}</span></Box>}
                     <Box className="selva-summary-item"><span className="label">Dirección:</span> <span className="value">{address}</span></Box>
                     <Box className="selva-summary-item"><span className="label">Email:</span> <span className="value">{email}</span></Box>
                     <Box className="selva-summary-item"><span className="label">Whatsapp:</span> <span className="value">+569 {phone}</span></Box>

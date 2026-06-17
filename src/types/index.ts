@@ -22,6 +22,7 @@ export interface Guardian {
   phone: string;
   address?: string;
   commune?: string;
+  villa?: string;
   dependents: Dependent[];
   acceptMarketing?: boolean;
   acceptDataTerms?: boolean;
@@ -54,6 +55,7 @@ export interface CreateGuardianPayload {
   phone: string;
   address?: string;
   commune?: string;
+  villa?: string;
   dependents: { name: string; rut: string; age: number }[];
   acceptMarketing?: boolean;
   acceptDataTerms?: boolean;
