@@ -105,6 +105,7 @@ export function SelvaPage() {
   const [dependents, setDependents] = useState<DependentFormItem[]>([{ ...EMPTY_DEPENDENT }]);
   const [acceptMarketing, setAcceptMarketing] = useState(false);
   const [acceptDataTerms, setAcceptDataTerms] = useState(false);
+  const [rulesAccepted, setRulesAccepted] = useState(false);
 
   // Schedules state (Step 2)
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -134,6 +135,49 @@ export function SelvaPage() {
       socket.disconnect();
     };
   }, []);
+
+  // Alerta de normas obligatorias (Step 1)
+  useEffect(() => {
+    if (step === 1 && !rulesAccepted) {
+      Swal.fire({
+        title: 'Norma de Uso Obligatoria',
+        html: `
+          <div style="text-align: left; font-family: inherit; line-height: 1.6; color: #1e293b;">
+            <p style="margin-bottom: 12px; font-size: 0.95rem;">
+              Para inscribirse en la exposición <strong>Selva Viva</strong>, es obligatorio leer y aceptar la siguiente norma de uso:
+            </p>
+            <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 16px; margin: 16px 0; font-weight: 700; color: #b45309; font-size: 0.9rem;">
+              • Con el fin de resguardar el bienestar y la tranquilidad de los animales que forman parte de la exposición, no está permitido el ingreso con mascotas de ningún tipo ni tamaño.
+            </div>
+            <div style="margin-top: 20px; display: flex; align-items: flex-start; gap: 10px;">
+              <input type="checkbox" id="rules-checkbox" style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px; flex-shrink: 0;" />
+              <label for="rules-checkbox" style="cursor: pointer; font-weight: 700; font-size: 0.88rem; color: #0f766e; user-select: none; line-height: 1.4;">
+                Declaro haber leído y estar en conocimiento de la norma señalada.
+              </label>
+            </div>
+          </div>
+        `,
+        icon: 'warning',
+        confirmButtonText: 'Aceptar y Continuar',
+        confirmButtonColor: '#0f766e',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        allowEnterKey: false,
+        preConfirm: () => {
+          const checkbox = document.getElementById('rules-checkbox') as HTMLInputElement;
+          if (!checkbox || !checkbox.checked) {
+            Swal.showValidationMessage('Debes declarar estar en conocimiento de la norma para continuar');
+            return false;
+          }
+          return true;
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setRulesAccepted(true);
+        }
+      });
+    }
+  }, [step, rulesAccepted]);
 
   // Fetch initial schedules
   useEffect(() => {
