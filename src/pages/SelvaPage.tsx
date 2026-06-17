@@ -242,8 +242,14 @@ export function SelvaPage() {
 
   // Handlers for step 1 dependents
   const handleChangeDependent = (index: number, field: keyof DependentFormItem, value: string) => {
+    let sanitizedValue = value;
+    if (field === 'name') {
+      sanitizedValue = value.replace(/\d/g, '');
+    } else if (field === 'age') {
+      sanitizedValue = value.replace(/\D/g, '');
+    }
     setDependents((prev) =>
-      prev.map((dep, i) => (i === index ? { ...dep, [field]: value } : dep)),
+      prev.map((dep, i) => (i === index ? { ...dep, [field]: sanitizedValue } : dep)),
     );
   };
 
@@ -399,7 +405,7 @@ export function SelvaPage() {
                 <Box className={`selva-step-dot ${step >= 3 ? 'active' : ''}`}>3</Box>
               </Box>
               <Box className="selva-stepper-labels">
-                <Typography className={`selva-step-label ${step === 1 ? 'active' : ''}`}>Datos apoderado</Typography>
+                <Typography className={`selva-step-label ${step === 1 ? 'active' : ''}`}>Datos inscrito</Typography>
                 <Typography className={`selva-step-label ${step === 2 ? 'active' : ''}`}>Elegir horario</Typography>
                 <Typography className={`selva-step-label ${step === 3 ? 'active' : ''}`}>Confirmar</Typography>
               </Box>
@@ -412,13 +418,13 @@ export function SelvaPage() {
           {step === 1 && (
             <Stack spacing={2} className="selva-step-content">
               <Typography variant="h6" className="selva-step-title">
-                Ingresa tus datos personales
+                Ingresa tus datos
               </Typography>
               
               <TextField
                 label="Nombre y Apellido"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => setName(event.target.value.replace(/\d/g, ''))}
                 required
                 fullWidth
               />
@@ -438,7 +444,7 @@ export function SelvaPage() {
                 label="Dirección"
                 value={address}
                 onChange={(event) => setAddress(event.target.value)}
-                placeholder="Ejemplo: Av. Vitacura 1230, Depto 40"
+                placeholder="Ejemplo: Av. O’Higgins 281"
                 error={address.trim().length > 0 && address.trim().length < 2}
                 helperText={address.trim().length > 0 && address.trim().length < 2 ? 'Dirección muy corta.' : ''}
                 required
@@ -449,7 +455,7 @@ export function SelvaPage() {
                 label="Comuna"
                 value={commune}
                 onChange={(event) => setCommune(event.target.value)}
-                placeholder="Ejemplo: Santiago"
+                placeholder="Ejemplo: Quilicura"
                 error={commune.trim().length > 0 && commune.trim().length < 2}
                 helperText={commune.trim().length > 0 && commune.trim().length < 2 ? 'Comuna muy corta.' : ''}
                 required
@@ -723,7 +729,7 @@ export function SelvaPage() {
               <Box className="selva-summary-container">
                 {/* Datos Apoderado */}
                 <Box className="selva-summary-section">
-                  <Typography className="selva-summary-section-title">Apoderado</Typography>
+                  <Typography className="selva-summary-section-title">Inscrito</Typography>
                   <Box className="selva-summary-grid">
                     <Box className="selva-summary-item"><span className="label">Nombre:</span> <span className="value">{name}</span></Box>
                     <Box className="selva-summary-item"><span className="label">RUT:</span> <span className="value">{rut}</span></Box>
@@ -787,7 +793,7 @@ export function SelvaPage() {
                       className="selva-custom-checkbox"
                     />
                   }
-                  label="ACEPTO QUE LA CORPORACIÓN ME ENVIE INFORMACIÓN DE ACTIVIDADES FUTURAS"
+                  label="Acepto que la Corporación me envíe información sobre actividades futuras"
                 />
                 <FormControlLabel
                   className="selva-checkbox-label"
@@ -798,7 +804,7 @@ export function SelvaPage() {
                       className="selva-custom-checkbox"
                     />
                   }
-                  label="AUTORIZO TRATAMIENTO DE DATOS"
+                  label="Autorizo el tratamiento de mis datos personales"
                 />
               </Stack>
 
@@ -835,73 +841,92 @@ export function SelvaPage() {
 
           {/* STEP 4: Confirmación de reserva */}
           {step === 4 && createdReservation && (
-            <Stack spacing={3} className="selva-step-content selva-confirmation-container">
-              <Typography variant="h6" className="selva-step-title centered selva-confirmation-title">
-                Confirmación
-              </Typography>
-
-              <Box className="selva-confirmation-card">
-                <Typography className="selva-confirmation-success-text">
-                  ¡Reserva realizada con éxito!
+            <Stack spacing={2.5} className="selva-step-content selva-confirmation-container">
+              {/* Icono de éxito y título */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 1, mb: 1 }}>
+                <CheckCircle sx={{ fontSize: '3.5rem', color: '#0d9488', mb: 1.5 }} />
+                <Typography variant="h6" className="selva-step-title centered" sx={{ m: 0 }}>
+                  ¡Inscripción Exitosa!
                 </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, textAlign: 'center' }}>
+                  Tu reserva ha sido procesada de manera correcta.
+                </Typography>
+              </Box>
 
-                <ul className="selva-confirmation-list">
-                  <li className="selva-confirmation-item">
-                    <span className="selva-bullet-square"></span>
-                    <Typography className="selva-item-text">
-                      Código de reserva: SV-{createdReservation.id.slice(-5).toUpperCase()}
-                    </Typography>
-                  </li>
-                  <li className="selva-confirmation-item">
-                    <span className="selva-bullet-square"></span>
-                    <Typography className="selva-item-text">
-                      Fecha: {createdReservation.dateLabel}
-                    </Typography>
-                  </li>
-                  <li className="selva-confirmation-item">
-                    <span className="selva-bullet-square"></span>
-                    <Typography className="selva-item-text">
-                      Horario: {createdReservation.timeLabel}
-                    </Typography>
-                  </li>
-                  <li className="selva-confirmation-item warning-highlight">
-                    <span className="selva-bullet-warning">
-                      <Warning className="warning-icon" />
-                    </span>
-                    <Typography className="selva-item-text warning-text">
-                      Debes presentarte 20 minutos antes.
-                    </Typography>
-                  </li>
-                  <li className="selva-confirmation-item">
-                    <span className="selva-bullet-square"></span>
-                    <Typography className="selva-item-text">
-                      Hemos enviado la confirmación a tu correo.
-                    </Typography>
-                  </li>
-                  <li className="selva-confirmation-item">
-                    <span className="selva-bullet-square"></span>
-                    <Typography className="selva-item-text">
-                      También recibirás un WhatsApp con tu QR.
-                    </Typography>
-                  </li>
-                </ul>
-
-                <Box className="selva-confirmation-actions">
-                  <Button
-                    variant="contained"
-                    onClick={handleDownloadQr}
-                    className="selva-download-qr-btn"
-                  >
-                    Descargar QR
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={handleGoHome}
-                    className="selva-volver-btn"
-                  >
-                    Cerrar
-                  </Button>
+              <Box className="selva-summary-container">
+                {/* Código de Reserva */}
+                <Box className="selva-summary-section" sx={{ alignItems: 'center', py: 0.5 }}>
+                  <Typography className="selva-summary-section-title" sx={{ mb: 0.5 }}>Código de Reserva</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 900, color: '#0f766e', letterSpacing: '0.05em' }}>
+                    SV-{createdReservation.id.slice(-5).toUpperCase()}
+                  </Typography>
                 </Box>
+
+                <Divider />
+
+                {/* Detalle del Horario (igual al Step 3) */}
+                <Box className="selva-summary-section schedule-highlight">
+                  <Typography className="selva-summary-section-title">Horario Asignado</Typography>
+                  <Box className="selva-summary-schedule-info">
+                    <CheckCircle className="selva-summary-schedule-icon" />
+                    <Box>
+                      <Typography className="selva-summary-date">
+                        {createdReservation.dateLabel}
+                      </Typography>
+                      <Typography className="selva-summary-time">
+                        {createdReservation.timeLabel} hrs
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Divider />
+
+                {/* Notas e Indicaciones */}
+                <Box className="selva-summary-section">
+                  <Typography className="selva-summary-section-title">Información Importante</Typography>
+                  <Stack spacing={1.2} sx={{ mt: 0.5 }}>
+                    <Box className="selva-confirmation-item warning-highlight">
+                      <span className="selva-bullet-warning">
+                        <Warning className="warning-icon" />
+                      </span>
+                      <Typography className="selva-item-text warning-text">
+                        Debes presentarte 20 minutos antes de tu horario.
+                      </Typography>
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: '10px', px: 1 }}>
+                      <span className="selva-bullet-square"></span>
+                      <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
+                        Hemos enviado la confirmación de tu reserva a tu correo electrónico.
+                      </Typography>
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: '10px', px: 1 }}>
+                      <span className="selva-bullet-square"></span>
+                      <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
+                        Recibirás un mensaje de WhatsApp con tu código QR de acceso.
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              </Box>
+
+              <Box className="selva-confirmation-actions">
+                <Button
+                  variant="contained"
+                  onClick={handleDownloadQr}
+                  className="selva-download-qr-btn"
+                >
+                  Descargar QR
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleGoHome}
+                  className="selva-volver-btn"
+                >
+                  Cerrar
+                </Button>
               </Box>
             </Stack>
           )}

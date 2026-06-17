@@ -39,7 +39,7 @@ export function HomePage() {
         <Box className="home-campaign-card home-campaign-card-upcoming" aria-label="Campana Pista de Hielo bloqueada">
           <Box component="img" className="home-campaign-image" src={hieloCard} alt="Campana Pista de Hielo" />
           <Button variant="contained" className="home-campaign-btn home-campaign-btn-disabled" disabled>
-            PROXIMAMMENTE
+            PROXIMAMENTE
           </Button>
         </Box>
       </Box>

@@ -90,9 +90,10 @@
 }
 
 .home-campaign-btn-disabled.Mui-disabled {
-  background: linear-gradient(135deg, #6d28d9, #7c3aed);
-  color: #fff;
-  opacity: 0.95;
+  background: rgba(15, 23, 42, 0.45) !important; /* Fondo gris oscuro traslúcido para contraste */
+  color: rgba(255, 255, 255, 0.55) !important;     /* Texto blanco tenue */
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+  box-shadow: none !important;
 }
 
 .home-footer-logos-wrap {

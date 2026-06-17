@@ -638,7 +638,7 @@
 }
 
 .selva-checkbox-label {
-  align-items: flex-start !important;
+  align-items: center !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
   gap: 4px;
@@ -649,17 +649,17 @@
   font-weight: 700 !important;
   color: #1e293b !important;
   line-height: 1.4 !important;
-  margin-top: 7px; /* Align text vertically with the checkbox */
+  margin-top: 0 !important; /* Eliminamos el margen hacky para lograr una alineación perfecta */
   letter-spacing: -0.01em;
 }
 
 .selva-custom-checkbox {
-  color: #ef4444 !important; /* Border color when unchecked (red) */
+  color: #0f766e !important; /* Color turquesa de la página (desmarcado) */
   padding: 6px !important;
 }
 
 .selva-custom-checkbox.Mui-checked {
-  color: #0f766e !important; /* Color when checked (teal) */
+  color: #0d9488 !important; /* Color verde turquesa brillante al estar seleccionado */
 }
 
 /* ==========================================
