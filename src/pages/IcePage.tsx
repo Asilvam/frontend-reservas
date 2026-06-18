@@ -561,7 +561,7 @@ export function IcePage() {
   const handleDownloadQr = () => {
     if (!createdReservation) return;
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3500';
-    window.open(`${baseUrl}/reservations/${createdReservation.id}/qrcode`, '_blank');
+    window.open(`${baseUrl}reservations/${createdReservation.id}/qrcode`, '_blank');
   };
 
   const handleGoHome = () => {
