@@ -60,7 +60,6 @@ export interface CreateGuardianPayload {
   villa?: string;
   emergencyName?: string;
   emergencyPhone?: string;
-  dependents: { name: string; rut: string; age: number }[];
   acceptMarketing?: boolean;
   acceptDataTerms?: boolean;
 }

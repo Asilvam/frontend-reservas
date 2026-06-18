@@ -388,7 +388,7 @@ export function SelvaPage() {
     try {
       setSubmitting(true);
 
-      // 1. Create guardian & dependents
+      // 1. Create guardian (sin dependientes asociados en su ficha)
       const guardianPayload: CreateGuardianPayload = {
         name: name.trim(),
         rut: rut.trim(),
@@ -397,18 +397,13 @@ export function SelvaPage() {
         address: address.trim(),
         commune: commune.trim(),
         villa: villa.trim() || undefined,
-        dependents: activeDependents.map((dep) => ({
-          name: dep.name.trim(),
-          rut: dep.rut.trim(),
-          age: Number(dep.age),
-        })),
         acceptMarketing,
         acceptDataTerms,
       };
 
       const { data: createdGuardian } = await api.post<Guardian>('/guardians', guardianPayload);
 
-      // 2. Create reservation immediately
+      // 2. Create reservation immediately (guardando aquí los dependientes/acompañantes con edad)
       const reservationPayload = {
         scheduleId: selectedSchedule._id,
         guardianId: createdGuardian._id,
@@ -416,6 +411,7 @@ export function SelvaPage() {
         attendingDependents: activeDependents.map((dep) => ({
           name: dep.name.trim(),
           rut: dep.rut.trim(),
+          age: Number(dep.age),
         })),
       };
 

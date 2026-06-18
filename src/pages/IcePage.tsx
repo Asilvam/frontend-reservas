@@ -434,7 +434,7 @@ export function IcePage() {
     try {
       setSubmitting(true);
 
-      // 1. Create guardian & dependents
+      // 1. Create guardian (sin dependientes en su ficha)
       const guardianPayload: CreateGuardianPayload = {
         name: name.trim(),
         rut: rut.trim(),
@@ -445,11 +445,6 @@ export function IcePage() {
         villa: villa.trim() || undefined,
         emergencyName: emergencyName.trim(),
         emergencyPhone: `+569${emergencyPhone.trim()}`,
-        dependents: activeDependents.map((dep) => ({
-          name: dep.name.trim(),
-          rut: dep.rut.trim(),
-          age: Number(dep.age),
-        })),
         acceptMarketing,
         acceptDataTerms,
       };
@@ -469,7 +464,7 @@ export function IcePage() {
         });
       }
 
-      // 3. Create reservation immediately
+      // 3. Create reservation immediately (guardando aquí los dependientes con edad)
       const reservationPayload = {
         scheduleId: selectedSchedule._id,
         guardianId: createdGuardian._id,
@@ -477,6 +472,7 @@ export function IcePage() {
         attendingDependents: activeDependents.map((dep) => ({
           name: dep.name.trim(),
           rut: dep.rut.trim(),
+          age: Number(dep.age),
         })),
         metadata: {
           eventType: 'patines',
