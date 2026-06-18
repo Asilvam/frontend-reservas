@@ -210,6 +210,10 @@ export function IcePage() {
         }
       });
     }
+
+    return () => {
+      Swal.close();
+    };
   }, [step, rulesAccepted]);
 
   // Fetch initial schedules for 'patines'
@@ -1040,7 +1044,7 @@ export function IcePage() {
               <Box className="selva-summary-container">
                 {/* Datos Apoderado */}
                 <Box className="selva-summary-section">
-                  <Typography className="selva-summary-section-title">Apoderado</Typography>
+                  <Typography className="selva-summary-section-title">Inscrito</Typography>
                   <Box className="selva-summary-grid">
                     <Box className="selva-summary-item"><span className="label">Nombre:</span> <span className="value">{name}</span></Box>
                     <Box className="selva-summary-item"><span className="label">RUT:</span> <span className="value">{rut}</span></Box>

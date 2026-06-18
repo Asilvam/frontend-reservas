@@ -195,6 +195,10 @@ export function SelvaPage() {
         }
       });
     }
+
+    return () => {
+      Swal.close();
+    };
   }, [step, rulesAccepted]);
 
   // Fetch initial schedules
@@ -487,7 +491,7 @@ export function SelvaPage() {
 
   const handleDownloadQr = () => {
     if (!createdReservation) return;
-    const url = `${api.defaults.baseURL}reservations/${createdReservation.id}/qrcode`;
+    const url = `${api.defaults.baseURL}/reservations/${createdReservation.id}/qrcode`;
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `reserva-${createdReservation.id}.png`);
