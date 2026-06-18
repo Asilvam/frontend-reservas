@@ -989,16 +989,6 @@ export function SelvaPage() {
               </Box>
 
               <Box className="selva-summary-container">
-                {/* Código de Reserva */}
-                <Box className="selva-summary-section" sx={{ alignItems: 'center', py: 0.5 }}>
-                  <Typography className="selva-summary-section-title" sx={{ mb: 0.5 }}>Código de Reserva</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 900, color: '#0f766e', letterSpacing: '0.05em' }}>
-                    SV-{createdReservation.id.slice(-5).toUpperCase()}
-                  </Typography>
-                </Box>
-
-                <Divider />
-
                 {/* Detalle del Horario (igual al Step 3) */}
                 <Box className="selva-summary-section schedule-highlight">
                   <Typography className="selva-summary-section-title">Horario Asignado</Typography>
@@ -1020,27 +1010,28 @@ export function SelvaPage() {
                 {/* Notas e Indicaciones */}
                 <Box className="selva-summary-section">
                   <Typography className="selva-summary-section-title">Información Importante</Typography>
-                  <Stack spacing={1.2} sx={{ mt: 0.5 }}>
-                    <Box className="selva-confirmation-item warning-highlight">
-                      <span className="selva-bullet-warning">
-                        <Warning className="warning-icon" />
+                  <Stack spacing={1.5} sx={{ mt: 0.5 }}>
+                    <Box className="selva-confirmation-item warning-highlight" style={{ backgroundColor: '#fffbeb', border: '1px solid #fef3c7', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'flex-start' }}>
+                      <span className="selva-bullet-warning" style={{ color: '#d97706', marginTop: '2px', display: 'inline-flex' }}>
+                        <Warning className="warning-icon" sx={{ fontSize: '24px' }} />
                       </span>
-                      <Typography className="selva-item-text warning-text">
-                        Debes presentarte 20 minutos antes de tu horario.
+                      <Typography className="selva-item-text warning-text" style={{ color: '#b45309', fontWeight: 700, fontSize: '0.9rem', lineHeight: 1.5, marginLeft: '8px' }}>
+                        <strong>¡VALIDACIÓN REQUERIDA!</strong><br/>
+                        Debes confirmar tu asistencia haciendo clic en el enlace que te enviamos por <strong>Correo Electrónico o WhatsApp dentro de los próximos 30 minutos</strong>. Si no lo confirmas en ese tiempo, perderás esta reserva y los cupos serán liberados automáticamente.
                       </Typography>
                     </Box>
                     
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: '10px', px: 1 }}>
                       <span className="selva-bullet-square"></span>
                       <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
-                        Hemos enviado la confirmación de tu reserva a tu correo electrónico.
+                        Debes presentarte 20 minutos antes de tu horario asignado.
                       </Typography>
                     </Box>
                     
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: '10px', px: 1 }}>
                       <span className="selva-bullet-square"></span>
                       <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
-                        Recibirás un mensaje de WhatsApp con tu código QR de acceso.
+                        Revisa tu bandeja de entrada o spam si no visualizas el correo de confirmación.
                       </Typography>
                     </Box>
                   </Stack>
