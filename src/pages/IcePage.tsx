@@ -24,6 +24,8 @@ import Swal from 'sweetalert2';
 import { api, socket } from '../services/api';
 import type { CreateGuardianPayload, Schedule, Guardian } from '../types';
 import { isValidDateKey, toChileDateKey, formatChileDateLabel, formatChileTime } from '../utils/datetime';
+import { hasRepetitiveSpam } from '../utils/name';
+import { getEmailSuggestion } from '../utils/email';
 import fondoImage from '../assets/Fondo.jpg';
 import iceWebHeader from '../assets/Hielo.png';
 import institutionalLogos from '../assets/logos.png';
@@ -45,6 +47,7 @@ const EMPTY_DEPENDENT: DependentFormItem = { name: '', rut: '', age: '', shoeSiz
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
 const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
+const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/;
 
 function normalizeRut(rawRut: string) {
   return rawRut.replace(/-/g, '').trim().toUpperCase();
@@ -151,6 +154,22 @@ export function IcePage() {
       Swal.fire({
         title: 'Normas de Uso Obligatorias',
         html: `
+          <style>
+            .swal2-title {
+              font-size: 1.4rem !important;
+            }
+            .swal2-icon {
+              transform: scale(0.65) !important;
+              margin: 10px auto -15px auto !important;
+            }
+            .swal2-popup {
+              padding: 1rem 1.5rem 1.5rem 1.5rem !important;
+              max-width: 460px !important;
+            }
+            .swal2-html-container {
+              margin: 10px 0 0 0 !important;
+            }
+          </style>
           <div style="text-align: left; font-family: inherit; line-height: 1.5; color: #1e293b;">
             <p style="margin-bottom: 12px; font-size: 0.95rem;">
               Para inscribirse en la <strong>Pista de Hielo</strong>, es obligatorio leer y aceptar las siguientes normas de uso:
@@ -177,7 +196,6 @@ export function IcePage() {
         confirmButtonColor: '#0f766e',
         allowOutsideClick: false,
         allowEscapeKey: false,
-        allowEnterKey: false,
         preConfirm: () => {
           const checkbox = document.getElementById('rules-checkbox') as HTMLInputElement;
           if (!checkbox || !checkbox.checked) {
@@ -195,6 +213,41 @@ export function IcePage() {
   }, [step, rulesAccepted]);
 
   // Fetch initial schedules for 'patines'
+  useEffect(() => {
+    const fetchGuardianByRut = async () => {
+      const cleanRut = normalizeRut(rut);
+      if (isValidChileanRut(rut)) {
+        try {
+          const { data } = await api.get<Guardian | null>(`/guardians/by-rut/${cleanRut}`);
+          if (data) {
+            if (data.name) setName(data.name);
+            if (data.email) setEmail(data.email);
+            if (data.phone) setPhone(data.phone.replace(/^\+56\s?9/, '').replace(/^56\s?9/, ''));
+            if (data.address) setAddress(data.address);
+            if (data.commune) setCommune(data.commune);
+            if (data.villa) setVilla(data.villa);
+            if (data.emergencyName) setEmergencyName(data.emergencyName);
+            if (data.emergencyPhone) setEmergencyPhone(data.emergencyPhone.replace(/^\+56\s?9/, '').replace(/^56\s?9/, ''));
+            
+            if (data.dependents && data.dependents.length > 0) {
+              const mappedDependents = data.dependents.map(dep => ({
+                name: dep.name,
+                rut: formatRut(dep.rut),
+                age: String(dep.age ?? ''),
+                shoeSize: ''
+              }));
+              setDependents(mappedDependents);
+              setIsAccompanied(true);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching guardian by rut:', error);
+        }
+      }
+    };
+    fetchGuardianByRut();
+  }, [rut]);
+
   useEffect(() => {
     const fetchSchedules = async () => {
       try {
@@ -223,10 +276,12 @@ export function IcePage() {
 
   const areDependentsValid = useMemo(() => {
     if (!isAccompanied) return true;
-    if (dependents.length === 0) return false;
-    return dependents.every(
+    if (activeDependents.length === 0) return false;
+    return activeDependents.every(
       (dep) =>
         dep.name.trim().length >= 2 &&
+        NAME_REGEX.test(dep.name.trim()) &&
+        !hasRepetitiveSpam(dep.name.trim()) &&
         isValidChileanRut(dep.rut) &&
         dep.age.trim().length > 0 &&
         !isNaN(Number(dep.age)) &&
@@ -237,16 +292,28 @@ export function IcePage() {
         Number(dep.shoeSize) >= 25 &&
         Number(dep.shoeSize) <= 47,
     );
-  }, [dependents, isAccompanied]);
+  }, [activeDependents, isAccompanied]);
 
   // General step 1 validation
+  const isGuardianNameValid = useMemo(() => {
+    const trimmed = name.trim();
+    if (!NAME_REGEX.test(trimmed)) return false;
+    if (hasRepetitiveSpam(trimmed)) return false;
+    const parts = trimmed.split(/\s+/);
+    return parts.length >= 2 && parts.every((p) => p.length >= 2);
+  }, [name]);
+
   const isGuardianRutValid = isValidChileanRut(rut);
   const isGuardianEmailValid = EMAIL_REGEX.test(email.trim());
   const isGuardianPhoneValid = CHILEAN_MOBILE_REGEX.test(phone.trim());
   const isEmergencyPhoneValid = CHILEAN_MOBILE_REGEX.test(emergencyPhone.trim());
 
+  const emailSuggestion = useMemo(() => {
+    return getEmailSuggestion(email);
+  }, [email]);
+
   const isStep1Valid = useMemo(() => {
-    if (name.trim().length < 2) return false;
+    if (!isGuardianNameValid) return false;
     if (!isGuardianRutValid) return false;
     if (!isGuardianEmailValid) return false;
     if (!isGuardianPhoneValid) return false;
@@ -260,7 +327,8 @@ export function IcePage() {
     // Adult skating choice validation
     if (adultWantsToSkate === '') return false;
     if (adultWantsToSkate === 'si') {
-      if (adultShoeSize.trim().length === 0 || isNaN(Number(adultShoeSize)) || Number(adultShoeSize) < 25 || Number(adultShoeSize) > 47) {
+      const sizeStr = String(adultShoeSize).trim();
+      if (sizeStr.length === 0 || isNaN(Number(sizeStr)) || Number(sizeStr) < 25 || Number(sizeStr) > 47) {
         return false;
       }
     }
@@ -272,14 +340,15 @@ export function IcePage() {
     isGuardianEmailValid, 
     isGuardianPhoneValid, 
     isGuardianRutValid, 
-    name, 
+    isGuardianNameValid, 
     address, 
     commune, 
     emergencyName, 
     emergencyPhone, 
     isEmergencyPhoneValid, 
     adultWantsToSkate, 
-    adultShoeSize
+    adultShoeSize,
+    emailSuggestion
   ]);
 
   // Total attendees including guardian only if they choose to skate
@@ -329,14 +398,15 @@ export function IcePage() {
   }, [selectedSchedule, totalAttendees]);
 
   // Handlers for step 1 dependents
-  const handleChangeDependent = (index: number, field: keyof DependentFormItem, value: string) => {
-    let sanitizedValue = value;
+  const handleChangeDependent = (index: number, field: keyof DependentFormItem, value: string | number) => {
+    const stringValue = String(value);
+    let sanitizedValue = stringValue;
     if (field === 'name') {
-      sanitizedValue = value.replace(/\d/g, '');
+      sanitizedValue = stringValue.replace(/\d/g, '');
     } else if (field === 'age') {
-      sanitizedValue = value.replace(/\D/g, '');
+      sanitizedValue = stringValue.replace(/\D/g, '');
     } else if (field === 'shoeSize') {
-      sanitizedValue = value.replace(/\D/g, '');
+      sanitizedValue = stringValue.replace(/\D/g, '');
     }
     setDependents((prev) =>
       prev.map((dep, i) => (i === index ? { ...dep, [field]: sanitizedValue } : dep)),
@@ -511,7 +581,7 @@ export function IcePage() {
                 <Box className={`selva-step-dot ${step >= 3 ? 'active' : ''}`}>3</Box>
               </Box>
               <Box className="selva-stepper-labels">
-                <Typography className={`selva-step-label ${step === 1 ? 'active' : ''}`}>Datos apoderado</Typography>
+                <Typography className={`selva-step-label ${step === 1 ? 'active' : ''}`}>Datos Inscrito</Typography>
                 <Typography className={`selva-step-label ${step === 2 ? 'active' : ''}`}>Elegir horario</Typography>
                 <Typography className={`selva-step-label ${step === 3 ? 'active' : ''}`}>Confirmar</Typography>
               </Box>
@@ -531,6 +601,14 @@ export function IcePage() {
                 label="Nombre y Apellido"
                 value={name}
                 onChange={(event) => setName(event.target.value.replace(/\d/g, ''))}
+                error={name.trim().length > 0 && !isGuardianNameValid}
+                helperText={
+                  name.trim().length > 0 && !isGuardianNameValid
+                    ? hasRepetitiveSpam(name)
+                      ? 'Por favor, evita repetir letras consecutivas de forma innecesaria en el nombre.'
+                      : 'Ingresa Nombre y Apellido (mínimo dos palabras, solo letras).'
+                    : ''
+                }
                 required
                 fullWidth
               />
@@ -592,6 +670,17 @@ export function IcePage() {
                 required
                 fullWidth
               />
+
+              {emailSuggestion && (
+                <Typography
+                  variant="caption"
+                  color="primary"
+                  style={{ cursor: 'pointer', display: 'block', marginTop: '-12px', marginBottom: '12px', fontWeight: 'bold' }}
+                  onClick={() => setEmail(emailSuggestion)}
+                >
+                  ¿Quisiste decir <strong>{emailSuggestion}</strong>?
+                </Typography>
+              )}
 
               <TextField
                 label="Teléfono Celular"
@@ -722,6 +811,14 @@ export function IcePage() {
                             label={`Nombre acompañante ${index + 1}`}
                             value={dependent.name}
                             onChange={(event) => handleChangeDependent(index, 'name', event.target.value)}
+                            error={dependent.name.trim().length > 0 && (!NAME_REGEX.test(dependent.name.trim()) || dependent.name.trim().length < 2 || hasRepetitiveSpam(dependent.name))}
+                            helperText={
+                              dependent.name.trim().length > 0 && (!NAME_REGEX.test(dependent.name.trim()) || dependent.name.trim().length < 2 || hasRepetitiveSpam(dependent.name))
+                                ? hasRepetitiveSpam(dependent.name)
+                                  ? 'Evita repetir letras consecutivas.'
+                                  : 'Nombre inválido (solo letras)'
+                                : ''
+                            }
                           />
                           <TextField
                             fullWidth
@@ -811,86 +908,104 @@ export function IcePage() {
             </Stack>
           )}
 
-          {/* STEP 2: Selección de Horarios */}
+          {/* STEP 2: Selección de Horario */}
           {step === 2 && (
-            <Stack spacing={3} className="selva-step-content">
-              <Typography variant="h6" className="selva-step-title centered">
-                Selecciona la fecha y hora
+            <Stack spacing={2} className="selva-step-content">
+              <Typography variant="h6" className="selva-step-title">
+                Selecciona la fecha y el horario
               </Typography>
 
               {loadingSchedules ? (
                 <Box className="selva-wizard-loading">
                   <CircularProgress size={40} />
-                  <Typography variant="body2" sx={{ mt: 1.5, color: '#64748b' }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                     Cargando horarios disponibles...
                   </Typography>
                 </Box>
-              ) : schedules.length === 0 ? (
-                <Box className="selva-wizard-empty">
-                  <Typography variant="body1" sx={{ fontWeight: 700, color: '#0f766e' }}>
-                    No hay horarios disponibles en este momento.
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Intenta consultar más tarde o ponte en contacto con administración.
-                  </Typography>
-                </Box>
               ) : (
-                <Box className="selva-scheduler-wrapper">
-                  {/* Selector de Fecha */}
-                  <Box className="selva-date-tabs-container">
-                    <Typography className="selva-scheduler-label">1. Selecciona el día</Typography>
-                    <Box className="selva-date-tabs">
+                <>
+                  <FormControl fullWidth className="selva-wizard-date-control">
+                    <InputLabel id="selva-date-label">Fecha de reserva</InputLabel>
+                    <Select
+                      labelId="selva-date-label"
+                      value={selectedDateKey}
+                      label="Fecha de reserva"
+                      onChange={(event) => {
+                        setSelectedDateKey(event.target.value);
+                        setSelectedScheduleId('');
+                      }}
+                    >
                       {availableDateKeys.map((dateKey) => (
-                        <button
-                          key={dateKey}
-                          type="button"
-                          className={`selva-date-tab-btn ${selectedDateKey === dateKey ? 'active' : ''}`}
-                          onClick={() => {
-                            setSelectedDateKey(dateKey);
-                            setSelectedScheduleId('');
-                          }}
-                        >
+                        <MenuItem key={dateKey} value={dateKey}>
                           {formatChileDateLabel(dateKey)}
-                        </button>
+                        </MenuItem>
                       ))}
-                    </Box>
+                    </Select>
+                  </FormControl>
+
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Cupos requeridos para tu grupo: <strong>{totalAttendees}</strong>
+                  </Typography>
+
+                  <Box className="selva-wizard-schedule-grid">
+                    {activeSchedulesForSelectedDate.map((schedule) => {
+                      const date = new Date(schedule.startTime);
+                      const isSoldOut = schedule.availableSpots <= 0;
+                      const isSelected = selectedScheduleId === schedule._id;
+                      const hasEnoughSpots = schedule.availableSpots >= totalAttendees;
+
+                      const totalCapacity = schedule.totalCapacity > 0 ? schedule.totalCapacity : 30;
+                      const remainingRatio = schedule.availableSpots / totalCapacity;
+                      let availabilityTone: 'high' | 'medium' | 'low' | 'soldout' = 'high';
+                      if (isSoldOut) {
+                        availabilityTone = 'soldout';
+                      } else if (remainingRatio <= 1 / 3) {
+                        availabilityTone = 'low';
+                      } else if (remainingRatio <= 2 / 3) {
+                        availabilityTone = 'medium';
+                      }
+
+                      return (
+                        <Button
+                          key={schedule._id}
+                          variant={isSelected ? 'contained' : 'outlined'}
+                          color={isSoldOut ? 'inherit' : 'primary'}
+                          disabled={isSoldOut || !hasEnoughSpots}
+                          onClick={() => setSelectedScheduleId(schedule._id)}
+                          className={`spot-schedule-btn ${isSelected ? 'selected-slot' : ''} ${(!hasEnoughSpots || isSoldOut) ? 'spot-schedule-btn-soldout' : ''}`}
+                        >
+                          <Box className="spot-schedule-content">
+                            <Box className="spot-time-column">
+                              <Typography variant="h6" component="span" className="spot-time-label">
+                                {formatChileTime(date)}
+                              </Typography>
+                              {isSoldOut ? (
+                                <Typography variant="caption" component="span" className="spot-soldout-label">
+                                  AGOTADO
+                                </Typography>
+                              ) : null}
+                            </Box>
+
+                            <Box className="spot-cupos-column">
+                              <Box className={`spot-cupos-pill spot-cupos-pill-${availabilityTone}`}>
+                                <Typography variant="caption" component="span" className="spot-cupos-title-in-pill">
+                                  Cupos
+                                </Typography>
+                                <span className="spot-cupos-value">{schedule.availableSpots}</span>
+                              </Box>
+                            </Box>
+                          </Box>
+                        </Button>
+                      );
+                    })}
+
+                    {activeSchedulesForSelectedDate.length === 0 && (
+                      <Typography align="center" color="text.secondary" sx={{ gridColumn: '1 / -1', py: 3 }}>
+                        No hay horarios disponibles para la fecha seleccionada.
+                      </Typography>
+                    )}
                   </Box>
-
-                  {/* Selector de Bloques de Hora */}
-                  {selectedDateKey && (
-                    <Box className="selva-time-slots-container">
-                      <Typography className="selva-scheduler-label">2. Selecciona un bloque horario</Typography>
-                      <Box className="selva-time-slots-grid">
-                        {activeSchedulesForSelectedDate.map((schedule) => {
-                          const spots = schedule.availableSpots;
-                          const isFullyBooked = spots < totalAttendees;
-                          const isSelected = selectedScheduleId === schedule._id;
-
-                          return (
-                            <button
-                              key={schedule._id}
-                              type="button"
-                              disabled={isFullyBooked}
-                              className={`spot-schedule-btn ${isSelected ? 'selected-slot' : ''} ${
-                                isFullyBooked ? 'fully-booked' : ''
-                              }`}
-                              onClick={() => setSelectedScheduleId(schedule._id)}
-                            >
-                              <Typography className="spot-time-label">
-                                {formatChileTime(new Date(schedule.startTime))} hrs
-                              </Typography>
-                              <Typography className="spot-capacity-label">
-                                {isFullyBooked
-                                  ? 'Sin cupos suf.'
-                                  : `${spots} ${spots === 1 ? 'cupo' : 'cupos'} disp.`}
-                              </Typography>
-                            </button>
-                          );
-                        })}
-                      </Box>
-                    </Box>
-                  )}
-                </Box>
+                </>
               )}
 
               <Box className="selva-wizard-actions space-between">

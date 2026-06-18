@@ -24,6 +24,8 @@ import Swal from 'sweetalert2';
 import { api, socket } from '../services/api';
 import type { CreateGuardianPayload, Schedule, Guardian } from '../types';
 import { isValidDateKey, toChileDateKey, formatChileDateLabel, formatChileTime } from '../utils/datetime';
+import { hasRepetitiveSpam } from '../utils/name';
+import { getEmailSuggestion } from '../utils/email';
 import fondoImage from '../assets/Fondo.jpg';
 import selvaWebHeader from '../assets/Selvaweb.png';
 import institutionalLogos from '../assets/logos.png';
@@ -43,6 +45,7 @@ const EMPTY_DEPENDENT: DependentFormItem = { name: '', rut: '', age: '' };
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
 const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
+const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/;
 
 function normalizeRut(rawRut: string) {
   return rawRut.replace(/-/g, '').trim().toUpperCase();
@@ -142,6 +145,22 @@ export function SelvaPage() {
       Swal.fire({
         title: 'Norma de Uso Obligatoria',
         html: `
+          <style>
+            .swal2-title {
+              font-size: 1.4rem !important;
+            }
+            .swal2-icon {
+              transform: scale(0.65) !important;
+              margin: 10px auto -15px auto !important;
+            }
+            .swal2-popup {
+              padding: 1rem 1.5rem 1.5rem 1.5rem !important;
+              max-width: 460px !important;
+            }
+            .swal2-html-container {
+              margin: 10px 0 0 0 !important;
+            }
+          </style>
           <div style="text-align: left; font-family: inherit; line-height: 1.6; color: #1e293b;">
             <p style="margin-bottom: 12px; font-size: 0.95rem;">
               Para inscribirse en la exposición <strong>Selva Viva</strong>, es obligatorio leer y aceptar la siguiente norma de uso:
@@ -162,7 +181,6 @@ export function SelvaPage() {
         confirmButtonColor: '#0f766e',
         allowOutsideClick: false,
         allowEscapeKey: false,
-        allowEnterKey: false,
         preConfirm: () => {
           const checkbox = document.getElementById('rules-checkbox') as HTMLInputElement;
           if (!checkbox || !checkbox.checked) {
@@ -180,6 +198,38 @@ export function SelvaPage() {
   }, [step, rulesAccepted]);
 
   // Fetch initial schedules
+  useEffect(() => {
+    const fetchGuardianByRut = async () => {
+      const cleanRut = normalizeRut(rut);
+      if (isValidChileanRut(rut)) {
+        try {
+          const { data } = await api.get<Guardian | null>(`/guardians/by-rut/${cleanRut}`);
+          if (data) {
+            if (data.name) setName(data.name);
+            if (data.email) setEmail(data.email);
+            if (data.phone) setPhone(data.phone.replace(/^\+56\s?9/, '').replace(/^56\s?9/, ''));
+            if (data.address) setAddress(data.address);
+            if (data.commune) setCommune(data.commune);
+            if (data.villa) setVilla(data.villa);
+            
+            if (data.dependents && data.dependents.length > 0) {
+              const mappedDependents = data.dependents.map(dep => ({
+                name: dep.name,
+                rut: formatRut(dep.rut),
+                age: String(dep.age ?? '')
+              }));
+              setDependents(mappedDependents);
+              setIsAccompanied(true);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching guardian by rut:', error);
+        }
+      }
+    };
+    fetchGuardianByRut();
+  }, [rut]);
+
   useEffect(() => {
     const fetchSchedules = async () => {
       try {
@@ -212,6 +262,8 @@ export function SelvaPage() {
     return activeDependents.every(
       (dep) =>
         dep.name.trim().length >= 2 &&
+        NAME_REGEX.test(dep.name.trim()) &&
+        !hasRepetitiveSpam(dep.name.trim()) &&
         isValidChileanRut(dep.rut) &&
         dep.age.trim().length > 0 &&
         !isNaN(Number(dep.age)) &&
@@ -221,12 +273,24 @@ export function SelvaPage() {
   }, [activeDependents, isAccompanied]);
 
   // General step 1 validation
+  const isGuardianNameValid = useMemo(() => {
+    const trimmed = name.trim();
+    if (!NAME_REGEX.test(trimmed)) return false;
+    if (hasRepetitiveSpam(trimmed)) return false;
+    const parts = trimmed.split(/\s+/);
+    return parts.length >= 2 && parts.every((p) => p.length >= 2);
+  }, [name]);
+
   const isGuardianRutValid = isValidChileanRut(rut);
   const isGuardianEmailValid = EMAIL_REGEX.test(email.trim());
   const isGuardianPhoneValid = CHILEAN_MOBILE_REGEX.test(phone.trim());
 
+  const emailSuggestion = useMemo(() => {
+    return getEmailSuggestion(email);
+  }, [email]);
+
   const isStep1Valid = useMemo(() => {
-    if (name.trim().length < 2) return false;
+    if (!isGuardianNameValid) return false;
     if (!isGuardianRutValid) return false;
     if (!isGuardianEmailValid) return false;
     if (!isGuardianPhoneValid) return false;
@@ -234,7 +298,12 @@ export function SelvaPage() {
     if (commune.trim().length < 2) return false;
     if (!areDependentsValid) return false;
     return true;
-  }, [areDependentsValid, isGuardianEmailValid, isGuardianPhoneValid, isGuardianRutValid, name, address, commune]);
+  }, [areDependentsValid, isGuardianEmailValid, isGuardianPhoneValid, isGuardianRutValid, 
+    isGuardianNameValid, 
+    address, 
+    commune,
+    emailSuggestion
+  ]);
 
   // Date lists for selector (Step 2)
   const availableDateKeys = useMemo(() => {
@@ -472,6 +541,14 @@ export function SelvaPage() {
                 label="Nombre y Apellido"
                 value={name}
                 onChange={(event) => setName(event.target.value.replace(/\d/g, ''))}
+                error={name.trim().length > 0 && !isGuardianNameValid}
+                helperText={
+                  name.trim().length > 0 && !isGuardianNameValid
+                    ? hasRepetitiveSpam(name)
+                      ? 'Por favor, evita repetir letras consecutivas de forma innecesaria en el nombre.'
+                      : 'Ingresa Nombre y Apellido (mínimo dos palabras, solo letras).'
+                    : ''
+                }
                 required
                 fullWidth
               />
@@ -530,6 +607,17 @@ export function SelvaPage() {
                 fullWidth
               />
 
+              {emailSuggestion && (
+                <Typography
+                  variant="caption"
+                  color="primary"
+                  style={{ cursor: 'pointer', display: 'block', marginTop: '-8px', marginBottom: '8px', fontWeight: 'bold' }}
+                  onClick={() => setEmail(emailSuggestion)}
+                >
+                  ¿Quisiste decir <strong>{emailSuggestion}</strong>?
+                </Typography>
+              )}
+
               <TextField
                 label="Whatsapp"
                 value={phone}
@@ -580,6 +668,14 @@ export function SelvaPage() {
                             label={`Nombre acompañante ${index + 1}`}
                             value={dependent.name}
                             onChange={(event) => handleChangeDependent(index, 'name', event.target.value)}
+                            error={dependent.name.trim().length > 0 && (!NAME_REGEX.test(dependent.name.trim()) || dependent.name.trim().length < 2 || hasRepetitiveSpam(dependent.name))}
+                            helperText={
+                              dependent.name.trim().length > 0 && (!NAME_REGEX.test(dependent.name.trim()) || dependent.name.trim().length < 2 || hasRepetitiveSpam(dependent.name))
+                                ? hasRepetitiveSpam(dependent.name)
+                                  ? 'Evita repetir letras consecutivas.'
+                                  : 'Nombre inválido (solo letras)'
+                                : ''
+                            }
                           />
                           <TextField
                             fullWidth
