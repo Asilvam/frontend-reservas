@@ -257,7 +257,7 @@ export function SelvaPage() {
   // Dependents validations
   const activeDependents = useMemo(() => {
     if (!isAccompanied) return [];
-    return dependents.filter((dep) => dep.name.trim().length > 0 || dep.rut.trim().length > 0 || dep.age.trim().length > 0);
+    return dependents.filter((dep) => dep.name.trim().length > 0 || dep.rut.trim().length > 0);
   }, [dependents, isAccompanied]);
 
   const areDependentsValid = useMemo(() => {
@@ -268,11 +268,7 @@ export function SelvaPage() {
         dep.name.trim().length >= 2 &&
         NAME_REGEX.test(dep.name.trim()) &&
         !hasRepetitiveSpam(dep.name.trim()) &&
-        isValidChileanRut(dep.rut) &&
-        dep.age.trim().length > 0 &&
-        !isNaN(Number(dep.age)) &&
-        Number(dep.age) >= 0 &&
-        Number(dep.age) <= 130,
+        isValidChileanRut(dep.rut),
     );
   }, [activeDependents, isAccompanied]);
 
@@ -403,7 +399,7 @@ export function SelvaPage() {
 
       const { data: createdGuardian } = await api.post<Guardian>('/guardians', guardianPayload);
 
-      // 2. Create reservation immediately (guardando aquí los dependientes/acompañantes con edad)
+      // 2. Create reservation immediately (guardando aquí los dependientes/acompañantes sin edad)
       const reservationPayload = {
         scheduleId: selectedSchedule._id,
         guardianId: createdGuardian._id,
@@ -411,7 +407,6 @@ export function SelvaPage() {
         attendingDependents: activeDependents.map((dep) => ({
           name: dep.name.trim(),
           rut: dep.rut.trim(),
-          age: Number(dep.age),
         })),
       };
 
@@ -662,7 +657,7 @@ export function SelvaPage() {
                   <Stack spacing={1.5}>
                     {dependents.map((dependent, index) => (
                       <Box key={`dependent-${index}`} className="selva-wizard-dependent-row">
-                        <Box className="selva-wizard-dependent-fields">
+                        <Box className="selva-wizard-dependent-fields" style={{ gridTemplateColumns: '1fr 1fr' }}>
                           <TextField
                             fullWidth
                             label={`Nombre acompañante ${index + 1}`}
@@ -688,20 +683,6 @@ export function SelvaPage() {
                               dependent.rut.trim().length > 0 && !isValidChileanRut(dependent.rut)
                                 ? 'RUT inválido'
                                 : 'sin puntos y con guion'
-                            }
-                          />
-                          <TextField
-                            fullWidth
-                            label="Edad"
-                            value={dependent.age}
-                            onChange={(event) => handleChangeDependent(index, 'age', event.target.value.replace(/\D/g, ''))}
-                            placeholder="Ej: 8"
-                            slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 } }}
-                            error={dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < 0 || Number(dependent.age) > 130)}
-                            helperText={
-                              dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < 0 || Number(dependent.age) > 130)
-                                ? 'Edad'
-                                : ''
                             }
                           />
                         </Box>
