@@ -116,7 +116,6 @@ export function IcePage() {
   const [isAccompanied, setIsAccompanied] = useState(false);
   const [dependents, setDependents] = useState<DependentFormItem[]>([{ ...EMPTY_DEPENDENT }]);
   const [acceptMarketing, setAcceptMarketing] = useState(false);
-  const [acceptDataTerms, setAcceptDataTerms] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [loadedRut, setLoadedRut] = useState('');
 
@@ -473,7 +472,6 @@ export function IcePage() {
         emergencyName: emergencyName.trim(),
         emergencyPhone: `+569${emergencyPhone.trim()}`,
         acceptMarketing,
-        acceptDataTerms,
       };
 
       const { data: createdGuardian } = await api.post<Guardian>('/guardians', guardianPayload);
@@ -559,7 +557,6 @@ export function IcePage() {
       setDependents([{ ...EMPTY_DEPENDENT }]);
       setSelectedScheduleId('');
       setAcceptMarketing(false);
-      setAcceptDataTerms(false);
       setStep(4);
     } catch (error: unknown) {
       const backendMessage =
@@ -1149,19 +1146,7 @@ export function IcePage() {
                       className="selva-custom-checkbox"
                     />
                   }
-                  label="Acepto que la Corporación me envíe información sobre actividades futuras"
-                />
-                <FormControlLabel
-                  className="selva-checkbox-label"
-                  control={
-                    <Checkbox
-                      checked={acceptDataTerms}
-                      onChange={(e) => setAcceptDataTerms(e.target.checked)}
-                      className="selva-custom-checkbox"
-                    />
-                  }
-                  label="Autorizo el tratamiento de mis datos personales"
-                />
+                  label="Acepto que la Corporación me envíe información sobre actividades futuras" />
               </Stack>
 
               {submitting && (
