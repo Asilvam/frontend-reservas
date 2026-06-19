@@ -107,8 +107,20 @@ export function SelvaPage() {
   const [isAccompanied, setIsAccompanied] = useState(false);
   const [dependents, setDependents] = useState<DependentFormItem[]>([{ ...EMPTY_DEPENDENT }]);
   const [acceptMarketing, setAcceptMarketing] = useState(false);
-  const [acceptDataTerms, setAcceptDataTerms] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [loadedRut, setLoadedRut] = useState('');
+
+  const clearForm = () => {
+    setLoadedRut('');
+    setName('');
+    setEmail('');
+    setPhone('');
+    setAddress('');
+    setCommune('');
+    setVilla('');
+    setDependents([{ ...EMPTY_DEPENDENT }]);
+    setIsAccompanied(false);
+  };
 
   // Schedules state (Step 2)
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -206,9 +218,11 @@ export function SelvaPage() {
     const fetchGuardianByRut = async () => {
       const cleanRut = normalizeRut(rut);
       if (isValidChileanRut(rut)) {
+        if (cleanRut === loadedRut) return;
         try {
           const { data } = await api.get<Guardian | null>(`/guardians/by-rut/${cleanRut}`);
           if (data) {
+            setLoadedRut(cleanRut);
             if (data.name) setName(data.name);
             if (data.email) setEmail(data.email);
             if (data.phone) setPhone(data.phone.replace(/^\+56\s?9/, '').replace(/^56\s?9/, ''));
@@ -225,14 +239,22 @@ export function SelvaPage() {
               setDependents(mappedDependents);
               setIsAccompanied(true);
             }
+          } else {
+            if (loadedRut) {
+              clearForm();
+            }
           }
         } catch (error) {
           console.error('Error fetching guardian by rut:', error);
         }
+      } else {
+        if (loadedRut) {
+          clearForm();
+        }
       }
     };
     fetchGuardianByRut();
-  }, [rut]);
+  }, [rut, loadedRut]);
 
   useEffect(() => {
     const fetchSchedules = async () => {
@@ -394,7 +416,6 @@ export function SelvaPage() {
         commune: commune.trim(),
         villa: villa.trim() || undefined,
         acceptMarketing,
-        acceptDataTerms,
       };
 
       const { data: createdGuardian } = await api.post<Guardian>('/guardians', guardianPayload);
@@ -458,7 +479,6 @@ export function SelvaPage() {
       setDependents([{ ...EMPTY_DEPENDENT }]);
       setSelectedScheduleId('');
       setAcceptMarketing(false);
-      setAcceptDataTerms(false);
       setStep(4);
     } catch (error: unknown) {
       const backendMessage =
@@ -909,7 +929,7 @@ export function SelvaPage() {
                           {formatChileDateLabel(toChileDateKey(selectedSchedule.startTime))}
                         </Typography>
                         <Typography className="selva-summary-time">
-                          {formatChileTime(new Date(selectedSchedule.startTime))} hrs (Duración: {selectedSchedule.durationMinutes} minutos)
+                          {formatChileTime(new Date(selectedSchedule.startTime))} hrs (Duración: 45 minutos)
                         </Typography>
                       </Box>
                     </Box>
@@ -929,17 +949,6 @@ export function SelvaPage() {
                     />
                   }
                   label="Acepto que la Corporación me envíe información sobre actividades futuras"
-                />
-                <FormControlLabel
-                  className="selva-checkbox-label"
-                  control={
-                    <Checkbox
-                      checked={acceptDataTerms}
-                      onChange={(e) => setAcceptDataTerms(e.target.checked)}
-                      className="selva-custom-checkbox"
-                    />
-                  }
-                  label="Autorizo el tratamiento de mis datos personales"
                 />
               </Stack>
 
@@ -980,76 +989,44 @@ export function SelvaPage() {
               {/* Icono de éxito y título */}
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 1, mb: 1 }}>
                 <CheckCircle sx={{ fontSize: '3.5rem', color: '#0d9488', mb: 1.5 }} />
-                <Typography variant="h6" className="selva-step-title centered" sx={{ m: 0 }}>
-                  ¡Inscripción Exitosa!
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, textAlign: 'center' }}>
-                  Tu reserva ha sido procesada de manera correcta.
+                <Typography variant="h6" className="selva-step-title centered" sx={{ m: 0, fontWeight: 700 }}>
+                  ¡Tu solicitud fue recibida!
                 </Typography>
               </Box>
 
               <Box className="selva-summary-container">
-                {/* Detalle del Horario (igual al Step 3) */}
-                <Box className="selva-summary-section schedule-highlight">
-                  <Typography className="selva-summary-section-title">Horario Asignado</Typography>
-                  <Box className="selva-summary-schedule-info">
-                    <CheckCircle className="selva-summary-schedule-icon" />
-                    <Box>
-                      <Typography className="selva-summary-date">
-                        {createdReservation.dateLabel}
-                      </Typography>
-                      <Typography className="selva-summary-time">
-                        {createdReservation.timeLabel} hrs
-                      </Typography>
-                    </Box>
-                  </Box>
+                {/* Detalle del Horario */}
+                <Box className="selva-summary-section schedule-highlight" style={{ textAlign: 'center', padding: '16px 8px' }}>
+                  <Typography variant="h6" sx={{ color: '#0f766e', fontWeight: 700, fontSize: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    🗓️ {createdReservation.dateLabel} - {createdReservation.timeLabel} horas
+                  </Typography>
                 </Box>
 
                 <Divider />
 
                 {/* Notas e Indicaciones */}
                 <Box className="selva-summary-section">
-                  <Typography className="selva-summary-section-title">Información Importante</Typography>
                   <Stack spacing={1.5} sx={{ mt: 0.5 }}>
-                    <Box className="selva-confirmation-item warning-highlight" style={{ backgroundColor: '#fffbeb', border: '1px solid #fef3c7', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'flex-start' }}>
+                    <Box className="selva-confirmation-item warning-highlight" style={{ backgroundColor: '#fffbeb', border: '1px solid #fef3c7', padding: '18px', borderRadius: '12px', display: 'flex', alignItems: 'flex-start' }}>
                       <span className="selva-bullet-warning" style={{ color: '#d97706', marginTop: '2px', display: 'inline-flex' }}>
                         <Warning className="warning-icon" sx={{ fontSize: '24px' }} />
                       </span>
-                      <Typography className="selva-item-text warning-text" style={{ color: '#b45309', fontWeight: 700, fontSize: '0.9rem', lineHeight: 1.5, marginLeft: '8px' }}>
-                        <strong>¡VALIDACIÓN REQUERIDA!</strong><br/>
-                        Debes confirmar tu asistencia haciendo clic en el enlace que te enviamos por <strong>Correo Electrónico o WhatsApp dentro de los próximos 30 minutos</strong>. Si no lo confirmas en ese tiempo, perderás esta reserva y los cupos serán liberados automáticamente.
-                      </Typography>
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: '10px', px: 1 }}>
-                      <span className="selva-bullet-square"></span>
-                      <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
-                        Debes presentarte 20 minutos antes de tu horario asignado.
-                      </Typography>
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: '10px', px: 1 }}>
-                      <span className="selva-bullet-square"></span>
-                      <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
-                        Revisa tu bandeja de entrada o spam si no visualizas el correo de confirmación.
+                      <Typography className="selva-item-text warning-text" style={{ color: '#b45309', fontWeight: 500, fontSize: '0.92rem', lineHeight: 1.5, marginLeft: '10px' }}>
+                        Para completar el proceso, revisa tu correo electrónico y/o WhatsApp y <strong>confirma tu reserva dentro de los próximos 5 minutos</strong>.
+                        <br /><br />
+                        Si no confirmas en ese plazo, la solicitud se cancelará automáticamente.
                       </Typography>
                     </Box>
                   </Stack>
                 </Box>
               </Box>
 
-              <Box className="selva-confirmation-actions">
-                <Button
-                  variant="contained"
-                  onClick={handleDownloadQr}
-                  className="selva-download-qr-btn"
-                >
-                  Descargar QR
-                </Button>
+              <Box className="selva-confirmation-actions" style={{ justifyContent: 'center', alignItems: 'center', alignSelf: 'center' }}>
                 <Button
                   variant="outlined"
                   onClick={handleGoHome}
                   className="selva-volver-btn"
+                  style={{ maxWidth: '200px', width: '100%', margin: '0 auto', flex: 'none' }}
                 >
                   Cerrar
                 </Button>
