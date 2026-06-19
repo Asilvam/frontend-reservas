@@ -27,7 +27,6 @@ export interface Guardian {
   emergencyPhone?: string;
   dependents: Dependent[];
   acceptMarketing?: boolean;
-  acceptDataTerms?: boolean;
 }
 
 export interface LoginResponse {
@@ -61,5 +60,4 @@ export interface CreateGuardianPayload {
   emergencyName?: string;
   emergencyPhone?: string;
   acceptMarketing?: boolean;
-  acceptDataTerms?: boolean;
 }
