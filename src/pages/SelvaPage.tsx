@@ -1,6 +1,5 @@
 import { Add, DeleteOutlined, ArrowBack, ArrowForward, CheckCircle, Warning } from '@mui/icons-material';
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -1012,7 +1011,7 @@ export function SelvaPage() {
                         <Warning className="warning-icon" sx={{ fontSize: '24px' }} />
                       </span>
                       <Typography className="selva-item-text warning-text" style={{ color: '#b45309', fontWeight: 500, fontSize: '0.92rem', lineHeight: 1.5, marginLeft: '10px' }}>
-                        Para completar el proceso, revisa tu correo electrónico y/o WhatsApp y <strong>confirma tu reserva dentro de los próximos 5 minutos</strong>.
+                        Para completar el proceso, revisa tu correo electrónico y <strong style={{ color: '#dc2626' }}>confirma tu reserva</strong> <strong>dentro de los próximos 5 minutos</strong>.
                         <br /><br />
                         Si no confirmas en ese plazo, la solicitud se cancelará automáticamente.
                       </Typography>
