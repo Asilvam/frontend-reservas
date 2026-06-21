@@ -1006,11 +1006,11 @@ export function SelvaPage() {
                 {/* Notas e Indicaciones */}
                 <Box className="selva-summary-section">
                   <Stack spacing={1.5} sx={{ mt: 0.5 }}>
-                    <Box className="selva-confirmation-item warning-highlight" style={{ backgroundColor: '#fffbeb', border: '1px solid #fef3c7', padding: '18px', borderRadius: '12px', display: 'flex', alignItems: 'flex-start' }}>
+                    <Box className="selva-confirmation-item warning-highlight" style={{ backgroundColor: '#ffffff', border: '1px solid rgba(148, 163, 184, 0.25)', padding: '18px', borderRadius: '16px', display: 'flex', alignItems: 'flex-start', boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.02)' }}>
                       <span className="selva-bullet-warning" style={{ color: '#d97706', marginTop: '2px', display: 'inline-flex' }}>
                         <Warning className="warning-icon" sx={{ fontSize: '24px' }} />
                       </span>
-                      <Typography className="selva-item-text warning-text" style={{ color: '#b45309', fontWeight: 500, fontSize: '0.92rem', lineHeight: 1.5, marginLeft: '10px' }}>
+                      <Typography style={{ color: '#1e293b', fontWeight: 500, fontSize: '0.92rem', lineHeight: 1.5, marginLeft: '10px' }}>
                         Para completar el proceso, revisa tu correo electrónico y <strong style={{ color: '#dc2626' }}>confirma tu reserva</strong> <strong>dentro de los próximos 5 minutos</strong>.
                         <br /><br />
                         Si no confirmas en ese plazo, la solicitud se cancelará automáticamente.
