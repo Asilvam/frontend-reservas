@@ -904,7 +904,7 @@ export function SelvaPage() {
                       {activeDependents.map((dep, idx) => (
                         <Box key={idx} className="selva-summary-dependent-row">
                           <Typography className="dep-name"><strong>{dep.name}</strong></Typography>
-                          <Typography className="dep-rut">RUT: {dep.rut} • Edad: {dep.age} años</Typography>
+                          <Typography className="dep-rut">RUT: {dep.rut}</Typography>
                         </Box>
                       ))}
                     </Stack>
