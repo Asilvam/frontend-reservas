@@ -67,7 +67,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/dashboard" element={<Navigate to="/selva" replace />} />
         <Route path="/selva" element={<SelvaPage />} />
-        <Route path="/hielo" element={<IcePage />} />
+        <Route path="/hielo" element={<Navigate to="/home" replace />} />
         <Route path="/selva/register" element={<Navigate to="/selva" replace />} />
         <Route path="/register" element={<Navigate to="/selva" replace />} />
         <Route

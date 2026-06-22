@@ -188,3 +188,9 @@
     margin-top: 0.65rem;
   }
 }
+
+/* Tarjetas de campaña inactivas */
+.home-campaign-card-inactive {
+  opacity: 0.75;
+  filter: grayscale(15%);
+}
