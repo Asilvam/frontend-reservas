@@ -141,6 +141,7 @@ export function IcePage() {
   const [selectedDateKey, setSelectedDateKey] = useState('');
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [validatingRuts, setValidatingRuts] = useState(false);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
@@ -451,6 +452,78 @@ export function IcePage() {
 
   const handleRemoveDependent = (index: number) => {
     setDependents((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleGoToStep2 = async () => {
+    console.log('[IcePage] Click en handleGoToStep2');
+    console.log('[IcePage] isStep1Valid:', isStep1Valid);
+    console.log('[IcePage] Datos:', {
+      rut,
+      name,
+      email,
+      phone,
+      isAccompanied,
+      dependents,
+      isGuardianNameValid,
+      isGuardianRutValid,
+      isGuardianEmailValid,
+      isGuardianPhoneValid,
+      areDependentsValid
+    });
+
+    if (!isStep1Valid) {
+      console.warn('[IcePage] Cancelado: el paso 1 no es válido.');
+      return;
+    }
+
+    try {
+      console.log('[IcePage] Validating RUTs for tutor and dependents before proceeding to schedule selection...');
+      setValidatingRuts(true);
+      const cleanTutorRut = normalizeRut(rut);
+      const dependentRuts = activeDependents.map(d => normalizeRut(d.rut));
+      console.log('[IcePage] RUTs a validar:', { cleanTutorRut, dependentRuts });
+      
+      // Validar RUT del tutor
+      const { data: tutorCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${cleanTutorRut}?eventType=patines`);
+      console.log('[IcePage] Resultado tutor:', tutorCheck);
+      if (tutorCheck.registered) {
+        void Swal.fire({
+          icon: 'error',
+          title: 'Límite de Reservas',
+          text: 'El RUT del inscrito ya cuenta con una reserva activa o concluida para esta actividad (como tutor o acompañante). Te recordamos que cada persona puede participar solo una vez por evento.',
+          confirmButtonColor: '#0f766e',
+        });
+        setValidatingRuts(false);
+        return;
+      }
+
+      // Validar RUTs de acompañantes
+      for (const depRut of dependentRuts) {
+        const { data: depCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${depRut}?eventType=patines`);
+        if (depCheck.registered) {
+          void Swal.fire({
+            icon: 'error',
+            title: 'Límite de Reservas',
+            text: `El acompañante con RUT ${depRut} ya cuenta con una reserva activa o concluida para esta actividad (como tutor o acompañante). Te recordamos que cada persona puede participar solo una vez por evento.`,
+            confirmButtonColor: '#0f766e',
+          });
+          setValidatingRuts(false);
+          return;
+        }
+      }
+
+      setStep(2);
+    } catch (error) {
+      console.error('Error validating RUTs:', error);
+      void Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Hubo un problema al validar los RUTs de la reserva. Por favor, inténtelo de nuevo.',
+        confirmButtonColor: '#0f766e',
+      });
+    } finally {
+      setValidatingRuts(false);
+    }
   };
 
   // Main Submit handler (Step 3 Confirm)
@@ -920,13 +993,13 @@ export function IcePage() {
               <Box className="selva-wizard-actions">
                 <Button
                   variant="contained"
-                  onClick={() => setStep(2)}
-                  disabled={!isStep1Valid}
+                  onClick={handleGoToStep2}
+                  disabled={!isStep1Valid || validatingRuts}
                   className="selva-wizard-next-btn"
                   fullWidth
-                  endIcon={<ArrowForward />}
+                  endIcon={validatingRuts ? <CircularProgress size={20} color="inherit" /> : <ArrowForward />}
                 >
-                  Continuar
+                  {validatingRuts ? 'Validando...' : 'Continuar'}
                 </Button>
               </Box>
             </Stack>
