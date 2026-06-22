@@ -400,21 +400,6 @@ export function SelvaPage() {
   };
 
   const handleGoToStep2 = async () => {
-    console.log('[SelvaPage] Click en handleGoToStep2');
-    console.log('[SelvaPage] isStep1Valid:', isStep1Valid);
-    console.log('[SelvaPage] Datos:', {
-      rut,
-      name,
-      email,
-      phone,
-      isAccompanied,
-      dependents,
-      isGuardianNameValid,
-      isGuardianRutValid,
-      isGuardianEmailValid,
-      isGuardianPhoneValid,
-      areDependentsValid
-    });
 
     if (!isStep1Valid) {
       console.warn('[SelvaPage] Cancelado: el paso 1 no es válido.');
@@ -425,11 +410,9 @@ export function SelvaPage() {
       setValidatingRuts(true);
       const cleanTutorRut = normalizeRut(rut);
       const dependentRuts = activeDependents.map(d => normalizeRut(d.rut));
-      console.log('[SelvaPage] RUTs a validar:', { cleanTutorRut, dependentRuts });
       
       // Validar RUT del tutor
       const { data: tutorCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${cleanTutorRut}?eventType=selva`);
-      console.log('[SelvaPage] Resultado tutor:', tutorCheck);
       if (tutorCheck.registered) {
         void Swal.fire({
           icon: 'error',
