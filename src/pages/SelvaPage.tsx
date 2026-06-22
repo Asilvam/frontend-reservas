@@ -127,6 +127,7 @@ export function SelvaPage() {
   const [selectedDateKey, setSelectedDateKey] = useState('');
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [validatingRuts, setValidatingRuts] = useState(false);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
@@ -396,6 +397,77 @@ export function SelvaPage() {
 
   const handleRemoveDependent = (index: number) => {
     setDependents((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleGoToStep2 = async () => {
+    console.log('[SelvaPage] Click en handleGoToStep2');
+    console.log('[SelvaPage] isStep1Valid:', isStep1Valid);
+    console.log('[SelvaPage] Datos:', {
+      rut,
+      name,
+      email,
+      phone,
+      isAccompanied,
+      dependents,
+      isGuardianNameValid,
+      isGuardianRutValid,
+      isGuardianEmailValid,
+      isGuardianPhoneValid,
+      areDependentsValid
+    });
+
+    if (!isStep1Valid) {
+      console.warn('[SelvaPage] Cancelado: el paso 1 no es válido.');
+      return;
+    }
+
+    try {
+      setValidatingRuts(true);
+      const cleanTutorRut = normalizeRut(rut);
+      const dependentRuts = activeDependents.map(d => normalizeRut(d.rut));
+      console.log('[SelvaPage] RUTs a validar:', { cleanTutorRut, dependentRuts });
+      
+      // Validar RUT del tutor
+      const { data: tutorCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${cleanTutorRut}?eventType=selva`);
+      console.log('[SelvaPage] Resultado tutor:', tutorCheck);
+      if (tutorCheck.registered) {
+        void Swal.fire({
+          icon: 'error',
+          title: 'Límite de Reservas',
+          text: 'El RUT del inscrito ya cuenta con una reserva activa o concluida para esta actividad. Te recordamos que cada persona puede participar solo una vez por evento.',
+          confirmButtonColor: '#0f766e',
+        });
+        setValidatingRuts(false);
+        return;
+      }
+
+      // Validar RUTs de acompañantes
+      for (const depRut of dependentRuts) {
+        const { data: depCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${depRut}?eventType=selva`);
+        if (depCheck.registered) {
+          void Swal.fire({
+            icon: 'error',
+            title: 'Límite de Reservas',
+            text: `El acompañante con RUT ${depRut} ya cuenta con una reserva activa o concluida para esta activida. Te recordamos que cada persona puede participar solo una vez por evento.`,
+            confirmButtonColor: '#0f766e',
+          });
+          setValidatingRuts(false);
+          return;
+        }
+      }
+
+      setStep(2);
+    } catch (error) {
+      console.error('Error validating RUTs:', error);
+      void Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Hubo un problema al validar los RUTs de la reserva. Por favor, inténtelo de nuevo.',
+        confirmButtonColor: '#0f766e',
+      });
+    } finally {
+      setValidatingRuts(false);
+    }
   };
 
   // Main Submit handler (Step 3 Confirm)
@@ -739,12 +811,12 @@ export function SelvaPage() {
               <Box className="selva-wizard-actions">
                 <Button
                   variant="contained"
-                  disabled={!isStep1Valid}
-                  onClick={() => setStep(2)}
+                  disabled={!isStep1Valid || validatingRuts}
+                  onClick={handleGoToStep2}
                   className="selva-wizard-next-btn"
-                  endIcon={<ArrowForward />}
+                  endIcon={validatingRuts ? <CircularProgress size={20} color="inherit" /> : <ArrowForward />}
                 >
-                  Siguiente
+                  {validatingRuts ? 'Validando...' : 'Siguiente'}
                 </Button>
               </Box>
             </Stack>
