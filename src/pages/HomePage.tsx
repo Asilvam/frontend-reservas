@@ -36,16 +36,17 @@ export function HomePage() {
           </Button>
         </Box>
 
-        <Box className="home-campaign-card home-campaign-card-inactive">
+        <Box className="home-campaign-card home-campaign-card-active">
           <Box component="img" className="home-campaign-image" src={hieloCard} alt="Campana Pista de Hielo" />
           <Button
             variant="contained"
-            className="home-campaign-btn home-campaign-btn-disabled"
-            disabled
+            className="home-campaign-btn"
+            onClick={() => navigate('/hielo')}
           >
-            Pista de Hielo - Próximamente
+            Reservar Pista de Hielo
           </Button>
         </Box>
+
       </Box>
 
       <Box className="home-footer-logos-wrap">
