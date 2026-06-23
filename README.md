@@ -1,73 +1,87 @@
-# React + TypeScript + Vite
+# Frontend Reservas
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend en React + TypeScript + Vite para gestionar reservas de actividades.
 
-Currently, two official plugins are available:
+## Flujos principales
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `Selva Viva`: `src/pages/SelvaPage.tsx`
+- `Pista de Hielo`: `src/pages/IcePage.tsx`
+- `Login`: `src/pages/LoginPage.tsx`
 
-## React Compiler
+## Requisitos
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node `22.x`
+- npm `10.x`
 
-## Expanding the ESLint configuration
+## Variables de entorno
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Crear `.env` con al menos:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```env
+VITE_API_URL=http://localhost:3500
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Si no se define, el frontend usa `http://localhost:3500` por defecto.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run preview
+npm run start
 ```
+
+## Rutas principales
+
+- `/home`
+- `/login`
+- `/selva`
+- `/hielo`
+
+## Validaciones implementadas
+
+### Selva Viva
+
+- RUT del inscrito valido
+- RUT de acompanantes validos
+- no repetir RUT dentro del mismo formulario
+- no permitir RUT ya inscrito en el evento `selva`
+- prevalidacion de email con `GET /guardians/check-email/:email`
+- prevalidacion de telefono con `GET /guardians/check-phone/:phone`
+- proteccion para no marcar como duplicado el email o telefono del mismo guardian cargado por RUT
+- solo se muestran horarios futuros
+
+### Pista de Hielo
+
+- RUT del inscrito valido
+- RUT de acompanantes validos
+- no repetir RUT dentro del mismo formulario
+- no permitir RUT ya inscrito en el evento `patines`
+- no permitir reservas sin participante real
+- acompanantes permitidos solo entre `5` y `17` anos
+- si hay menores entre `5` y `7`, el adulto debe marcar que tambien patina
+- solo se muestran horarios futuros
+
+## Sesion y autenticacion
+
+- el token se guarda en `localStorage` como `accessToken`
+- existe cierre por inactividad en frontend despues de `2 minutos`
+- al expirar por inactividad, el usuario vuelve a `/login`
+
+## WebSocket
+
+La actualizacion de cupos en tiempo real usa `socket.io-client` desde `src/services/api.ts`.
+
+## Estado actual del lint
+
+- `IcePage.tsx` y `SelvaPage.tsx` quedaron ajustados a las reglas actuales del proyecto
+- el lint global del repo aun puede tener deuda tecnica en otros archivos no tocados
+
+## Documentacion interna
+
+Si se modifica `IcePage.tsx` o `SelvaPage.tsx`, actualizar tambien:
+
+- `informe-funcionalidades-validacion.md`
+- `informe-selvapage-validaciones.md` cuando el cambio afecte `SelvaPage`

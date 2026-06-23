@@ -34,6 +34,8 @@ import '../styles/spot-selector.css';
 
 const MAX_DEPENDENTS = 3;
 const SHOE_SIZES = Array.from({ length: 47 - 25 + 1 }, (_, i) => 25 + i); // [25, 26, ..., 47]
+const MIN_DEPENDENT_AGE = 5;
+const MAX_DEPENDENT_AGE = 17;
 
 type DependentFormItem = {
   name: string;
@@ -47,7 +49,7 @@ const EMPTY_DEPENDENT: DependentFormItem = { name: '', rut: '', age: '', shoeSiz
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
 const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
-const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/;
+const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
 
 function normalizeRut(rawRut: string) {
   return rawRut.replace(/-/g, '').trim().toUpperCase();
@@ -76,12 +78,27 @@ function isValidChileanRut(rut: string) {
   }
 
   const expectedDv = 11 - (sum % 11);
-  let expectedDvStr = '';
-  if (expectedDv === 11) expectedDvStr = '0';
-  else if (expectedDv === 10) expectedDvStr = 'K';
-  else expectedDvStr = String(expectedDv);
+  const expectedDvStr = expectedDv === 11 ? '0' : expectedDv === 10 ? 'K' : String(expectedDv);
 
   return dv === expectedDvStr;
+}
+
+function getDuplicateRut(values: string[]) {
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) continue;
+
+    const normalizedValue = normalizeRut(trimmedValue);
+    if (seen.has(normalizedValue)) {
+      return trimmedValue;
+    }
+
+    seen.add(normalizedValue);
+  }
+
+  return null;
 }
 
 export function IcePage() {
@@ -142,6 +159,7 @@ export function IcePage() {
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [validatingRuts, setValidatingRuts] = useState(false);
+  const [currentTimestamp, setCurrentTimestamp] = useState(0);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
@@ -162,6 +180,20 @@ export function IcePage() {
     return () => {
       socket.off('spots_updated', onSpotsUpdated);
       socket.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const updateCurrentTimestamp = () => {
+      setCurrentTimestamp(Date.now());
+    };
+
+    const timeoutId = window.setTimeout(updateCurrentTimestamp, 0);
+    const intervalId = window.setInterval(updateCurrentTimestamp, 60_000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
     };
   }, []);
 
@@ -270,10 +302,8 @@ export function IcePage() {
         } catch (error) {
           console.error('Error fetching guardian by rut:', error);
         }
-      } else {
-        if (loadedRut) {
-          clearForm();
-        }
+      } else if (loadedRut) {
+        clearForm();
       }
     };
     fetchGuardianByRut();
@@ -284,14 +314,15 @@ export function IcePage() {
       try {
         setLoadingSchedules(true);
         const { data } = await api.get<Schedule[]>('/schedules?eventType=patines');
+        console.log('[IcePage] Schedules:', data);
         setSchedules(data);
-      } catch (error) {
-        void Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'No se pudieron cargar los horarios.',
-          confirmButtonColor: '#0f766e',
-        });
+      } catch {
+          void Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudieron cargar los horarios.',
+            confirmButtonColor: '#0f766e',
+          });
       } finally {
         setLoadingSchedules(false);
       }
@@ -316,14 +347,25 @@ export function IcePage() {
         isValidChileanRut(dep.rut) &&
         dep.age.trim().length > 0 &&
         !isNaN(Number(dep.age)) &&
-        Number(dep.age) >= 5 && // Mínimo 5 años para patines
-        Number(dep.age) <= 130 &&
+        Number(dep.age) >= MIN_DEPENDENT_AGE &&
+        Number(dep.age) <= MAX_DEPENDENT_AGE &&
         dep.shoeSize.trim().length > 0 &&
         !isNaN(Number(dep.shoeSize)) &&
         Number(dep.shoeSize) >= 25 &&
         Number(dep.shoeSize) <= 47,
     );
   }, [activeDependents, isAccompanied]);
+
+  const hasYoungDependentRequiringAdult = useMemo(() => {
+    return activeDependents.some((dep) => {
+      const age = Number(dep.age);
+      return !isNaN(age) && age >= MIN_DEPENDENT_AGE && age <= 7;
+    });
+  }, [activeDependents]);
+
+  const duplicateRutInForm = useMemo(() => {
+    return getDuplicateRut([rut, ...activeDependents.map((dep) => dep.rut)]);
+  }, [rut, activeDependents]);
 
   // General step 1 validation
   const isGuardianNameValid = useMemo(() => {
@@ -364,9 +406,13 @@ export function IcePage() {
       }
     }
 
+    if (adultWantsToSkate === 'no' && activeDependents.length === 0) return false;
+    if (hasYoungDependentRequiringAdult && adultWantsToSkate !== 'si') return false;
     if (!areDependentsValid) return false;
+    if (duplicateRutInForm) return false;
     return true;
   }, [
+    activeDependents.length,
     areDependentsValid, 
     isGuardianEmailValid, 
     isGuardianPhoneValid, 
@@ -375,11 +421,11 @@ export function IcePage() {
     address, 
     commune, 
     emergencyName, 
-    emergencyPhone, 
     isEmergencyPhoneValid, 
     adultWantsToSkate, 
     adultShoeSize,
-    emailSuggestion
+    hasYoungDependentRequiringAdult,
+    duplicateRutInForm,
   ]);
 
   // Total attendees including guardian only if they choose to skate
@@ -387,41 +433,37 @@ export function IcePage() {
 
   // Date lists for selector (Step 2)
   const availableDateKeys = useMemo(() => {
-    const now = Date.now();
     const uniqueDates = Array.from(
       new Set(
         schedules
-          .filter((schedule) => new Date(schedule.startTime).getTime() > now)
+          .filter((schedule) => new Date(schedule.startTime).getTime() > currentTimestamp)
           .map((schedule) => toChileDateKey(schedule.startTime)),
       ),
     );
     return uniqueDates.sort((a, b) => a.localeCompare(b));
-  }, [schedules]);
+  }, [currentTimestamp, schedules]);
 
-  // Pre-fill default date selection
-  useEffect(() => {
-    if (availableDateKeys.length === 0) {
-      setSelectedDateKey('');
-    } else if (!selectedDateKey || !availableDateKeys.includes(selectedDateKey)) {
-      if (preferredDateKey && availableDateKeys.includes(preferredDateKey)) {
-        setSelectedDateKey(preferredDateKey);
-      } else {
-        setSelectedDateKey(availableDateKeys[0]);
-      }
-    }
-  }, [availableDateKeys, selectedDateKey, preferredDateKey]);
+  const resolvedSelectedDateKey = useMemo(() => {
+    if (availableDateKeys.length === 0) return '';
+    if (selectedDateKey && availableDateKeys.includes(selectedDateKey)) return selectedDateKey;
+    if (preferredDateKey && availableDateKeys.includes(preferredDateKey)) return preferredDateKey;
+    return availableDateKeys[0];
+  }, [availableDateKeys, preferredDateKey, selectedDateKey]);
 
   // Filtered schedules based on active date selection
   const activeSchedulesForSelectedDate = useMemo(() => {
-    if (!selectedDateKey) return [];
+    if (!resolvedSelectedDateKey) return [];
     return schedules
-      .filter((schedule) => toChileDateKey(schedule.startTime) === selectedDateKey)
+      .filter(
+        (schedule) =>
+          toChileDateKey(schedule.startTime) === resolvedSelectedDateKey && new Date(schedule.startTime).getTime() > currentTimestamp,
+      )
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [schedules, selectedDateKey]);
+  }, [currentTimestamp, resolvedSelectedDateKey, schedules]);
 
   const selectedSchedule = useMemo(() => {
-    return schedules.find((s) => s._id === selectedScheduleId);
-  }, [schedules, selectedScheduleId]);
+    return activeSchedulesForSelectedDate.find((s) => s._id === selectedScheduleId) ?? null;
+  }, [activeSchedulesForSelectedDate, selectedScheduleId]);
 
   const isStep2Valid = useMemo(() => {
     if (!selectedSchedule) return false;
@@ -473,6 +515,16 @@ export function IcePage() {
 
     if (!isStep1Valid) {
       console.warn('[IcePage] Cancelado: el paso 1 no es válido.');
+      return;
+    }
+
+    if (duplicateRutInForm) {
+      void Swal.fire({
+        icon: 'error',
+        title: 'Límite de Reservas',
+        text: `El RUT ${duplicateRutInForm} está repetido en esta inscripción. Te recordamos que cada persona puede participar solo una vez por evento.`,
+        confirmButtonColor: '#0f766e',
+      });
       return;
     }
 
@@ -592,7 +644,7 @@ export function IcePage() {
             reservationId = resData._id;
             break;
           }
-        } catch (pollError) {
+        } catch {
           // Ignore errors during polling, retry
         }
         await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -634,9 +686,9 @@ export function IcePage() {
     } catch (error: unknown) {
       const backendMessage =
         typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === 'string'
+          error !== null &&
+          'response' in error &&
+          typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === 'string'
           ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
           : null;
 
@@ -649,12 +701,6 @@ export function IcePage() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleDownloadQr = () => {
-    if (!createdReservation) return;
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3500';
-    window.open(`${baseUrl}reservations/${createdReservation.id}/qrcode`, '_blank');
   };
 
   const handleGoHome = () => {
@@ -829,9 +875,9 @@ export function IcePage() {
 
               <Divider sx={{ my: 1 }}>Participación de Adulto</Divider>
 
-              <FormControl fullWidth required>
-                <InputLabel id="adult-skate-select-label">¿Usted va a patinar?</InputLabel>
-                <Select
+                <FormControl fullWidth required>
+                  <InputLabel id="adult-skate-select-label">¿Usted va a patinar?</InputLabel>
+                  <Select
                   labelId="adult-skate-select-label"
                   label="¿Usted va a patinar?"
                   value={adultWantsToSkate}
@@ -843,11 +889,23 @@ export function IcePage() {
                 >
                   <MenuItem value="si">Sí</MenuItem>
                   <MenuItem value="no">No</MenuItem>
-                </Select>
-              </FormControl>
+                  </Select>
+                </FormControl>
 
-              {adultWantsToSkate === 'si' && (
-                <FormControl fullWidth required>
+               {adultWantsToSkate === 'no' && activeDependents.length === 0 && (
+                 <Alert severity="warning" sx={{ borderRadius: '12px' }}>
+                   Debe existir al menos un participante en la reserva.
+                 </Alert>
+               )}
+
+               {hasYoungDependentRequiringAdult && adultWantsToSkate === 'no' && (
+                 <Alert severity="warning" sx={{ borderRadius: '12px' }}>
+                   Si inscribes menores entre 5 y 7 años, el adulto también debe patinar.
+                 </Alert>
+               )}
+
+               {adultWantsToSkate === 'si' && (
+                 <FormControl fullWidth required>
                   <InputLabel id="adult-size-select-label">Talla de Calzado (Número de Patín)</InputLabel>
                   <Select
                     labelId="adult-size-select-label"
@@ -896,8 +954,14 @@ export function IcePage() {
               {isAccompanied && (
                 <Box className="selva-wizard-dependents">
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f766e', mb: 1 }}>
-                    Registrar Acompañantes (Edad mínima: 5 años)
+                    Registrar Acompañantes (Edades permitidas: 5 a 17 años)
                   </Typography>
+
+                  {duplicateRutInForm && (
+                    <Alert severity="error" sx={{ borderRadius: '12px' }}>
+                      No puedes repetir un mismo RUT dentro de la inscripción.
+                    </Alert>
+                  )}
 
                   <Stack spacing={2.5}>
                     {dependents.map((dependent, index) => (
@@ -933,17 +997,17 @@ export function IcePage() {
                           <TextField
                             fullWidth
                             label="Edad"
-                            value={dependent.age}
-                            onChange={(event) => handleChangeDependent(index, 'age', event.target.value.replace(/\D/g, ''))}
-                            placeholder="Ej: 8"
-                            slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 } }}
-                            error={dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < 5 || Number(dependent.age) > 130)}
-                            helperText={
-                              dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < 5 || Number(dependent.age) > 130)
-                                ? 'Mínimo 5 años'
-                                : ''
-                            }
-                          />
+                             value={dependent.age}
+                             onChange={(event) => handleChangeDependent(index, 'age', event.target.value.replace(/\D/g, ''))}
+                             placeholder="Ej: 8"
+                             inputProps={{ inputMode: 'numeric', maxLength: 3 }}
+                             error={dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < MIN_DEPENDENT_AGE || Number(dependent.age) > MAX_DEPENDENT_AGE)}
+                             helperText={
+                               dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < MIN_DEPENDENT_AGE || Number(dependent.age) > MAX_DEPENDENT_AGE)
+                                 ? 'Edad permitida: 5 a 17 años'
+                                 : ''
+                             }
+                           />
                           <FormControl fullWidth required>
                             <InputLabel id={`dep-size-select-label-${index}`}>Talla de Calzado</InputLabel>
                             <Select
@@ -1025,7 +1089,7 @@ export function IcePage() {
                     <InputLabel id="selva-date-label">Fecha de reserva</InputLabel>
                     <Select
                       labelId="selva-date-label"
-                      value={selectedDateKey}
+                      value={resolvedSelectedDateKey}
                       label="Fecha de reserva"
                       onChange={(event) => {
                         setSelectedDateKey(event.target.value);
@@ -1147,7 +1211,7 @@ export function IcePage() {
                     <Box className="selva-summary-item"><span className="label">Email:</span> <span className="value">{email}</span></Box>
                     <Box className="selva-summary-item"><span className="label">Whatsapp:</span> <span className="value">+569 {phone}</span></Box>
                     <Box className="selva-summary-item">
-                      <span className="label">¿Patina?:</span> 
+                      <span className="label">¿Patina?:</span>
                       <span className="value" style={{ fontWeight: 700, color: adultWantsToSkate === 'si' ? '#0d9488' : '#e11d48' }}>
                         {adultWantsToSkate === 'si' ? `Sí (N° ${adultShoeSize})` : 'No'}
                       </span>
