@@ -1,6 +1,5 @@
 import { Add, DeleteOutlined, ArrowBack, ArrowForward, CheckCircle, Warning } from '@mui/icons-material';
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -18,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { api, socket } from '../services/api';
@@ -135,9 +134,13 @@ export function IcePage() {
   const [acceptMarketing, setAcceptMarketing] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [loadedRut, setLoadedRut] = useState('');
+  const [loadedEmail, setLoadedEmail] = useState('');
+  const [loadedPhone, setLoadedPhone] = useState('');
 
   const clearForm = () => {
     setLoadedRut('');
+    setLoadedEmail('');
+    setLoadedPhone('');
     setName('');
     setEmail('');
     setPhone('');
@@ -160,6 +163,10 @@ export function IcePage() {
   const [submitting, setSubmitting] = useState(false);
   const [validatingRuts, setValidatingRuts] = useState(false);
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
+  const hasShownNoParticipantsWarningRef = useRef(false);
+  const hasShownYoungDependentWarningRef = useRef(false);
+  const hasShownAdultNoWarningRef = useRef(false);
+  const lastDuplicateRutAlertRef = useRef<string | null>(null);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
@@ -275,9 +282,12 @@ export function IcePage() {
           const { data } = await api.get<Guardian | null>(`/guardians/by-rut/${cleanRut}`);
           if (data) {
             setLoadedRut(cleanRut);
+            const normalizedPhone = data.phone ? data.phone.replace(/^\+56\s?9/, '').replace(/^56\s?9/, '') : '';
+            setLoadedEmail(data.email ?? '');
+            setLoadedPhone(normalizedPhone);
             if (data.name) setName(data.name);
             if (data.email) setEmail(data.email);
-            if (data.phone) setPhone(data.phone.replace(/^\+56\s?9/, '').replace(/^56\s?9/, ''));
+            if (normalizedPhone) setPhone(normalizedPhone);
             if (data.address) setAddress(data.address);
             if (data.commune) setCommune(data.commune);
             if (data.villa) setVilla(data.villa);
@@ -366,6 +376,74 @@ export function IcePage() {
   const duplicateRutInForm = useMemo(() => {
     return getDuplicateRut([rut, ...activeDependents.map((dep) => dep.rut)]);
   }, [rut, activeDependents]);
+
+  useEffect(() => {
+    if (step !== 1 || adultWantsToSkate !== 'no' || activeDependents.length > 0) {
+      hasShownNoParticipantsWarningRef.current = false;
+      return;
+    }
+
+    if (hasShownNoParticipantsWarningRef.current) return;
+
+    hasShownNoParticipantsWarningRef.current = true;
+    void Swal.fire({
+      icon: 'warning',
+      title: 'Participantes requeridos',
+      text: 'Debe existir al menos un participante en la reserva.',
+      confirmButtonColor: '#0f766e',
+    });
+  }, [activeDependents.length, adultWantsToSkate, step]);
+
+  useEffect(() => {
+    if (step !== 1 || adultWantsToSkate !== 'no' || !hasYoungDependentRequiringAdult) {
+      hasShownYoungDependentWarningRef.current = false;
+      return;
+    }
+
+    if (hasShownYoungDependentWarningRef.current) return;
+
+    hasShownYoungDependentWarningRef.current = true;
+    void Swal.fire({
+      icon: 'warning',
+      title: 'Acompañamiento obligatorio',
+      text: 'Si inscribes menores entre 5 y 7 años, el adulto también debe patinar.',
+      confirmButtonColor: '#0f766e',
+    });
+  }, [adultWantsToSkate, hasYoungDependentRequiringAdult, step]);
+
+  useEffect(() => {
+    if (step !== 1 || adultWantsToSkate !== 'no') {
+      hasShownAdultNoWarningRef.current = false;
+      return;
+    }
+
+    if (hasShownAdultNoWarningRef.current) return;
+
+    hasShownAdultNoWarningRef.current = true;
+    void Swal.fire({
+      icon: 'warning',
+      title: 'Participación del adulto',
+      text: 'Solo se contabilizarán los menores inscritos como participantes.',
+      confirmButtonColor: '#0f766e',
+    });
+  }, [adultWantsToSkate, step]);
+
+  useEffect(() => {
+    if (step !== 1 || !duplicateRutInForm) {
+      lastDuplicateRutAlertRef.current = null;
+      return;
+    }
+
+    if (lastDuplicateRutAlertRef.current === duplicateRutInForm) return;
+
+    lastDuplicateRutAlertRef.current = duplicateRutInForm;
+    void Swal.fire({
+      icon: 'error',
+      title: 'Límite de Reservas',
+      text: `El RUT ${duplicateRutInForm} está repetido en esta inscripción. Te recordamos que cada persona puede participar solo una vez por evento.`,
+      confirmButtonColor: '#0f766e',
+    });
+  }, [duplicateRutInForm, step]);
 
   // General step 1 validation
   const isGuardianNameValid = useMemo(() => {
@@ -533,6 +611,8 @@ export function IcePage() {
       setValidatingRuts(true);
       const cleanTutorRut = normalizeRut(rut);
       const dependentRuts = activeDependents.map(d => normalizeRut(d.rut));
+      const trimmedEmail = email.trim();
+      const normalizedPhone = `+569${phone.trim()}`;
       console.log('[IcePage] RUTs a validar:', { cleanTutorRut, dependentRuts });
       
       // Validar RUT del tutor
@@ -557,6 +637,34 @@ export function IcePage() {
             icon: 'error',
             title: 'Límite de Reservas',
             text: `El acompañante con RUT ${depRut} ya cuenta con una reserva activa o concluida para esta actividad (como tutor o acompañante). Te recordamos que cada persona puede participar solo una vez por evento.`,
+            confirmButtonColor: '#0f766e',
+          });
+          setValidatingRuts(false);
+          return;
+        }
+      }
+
+      if (trimmedEmail !== loadedEmail) {
+        const { data: emailCheck } = await api.get<{ available: boolean }>(`/guardians/check-email/${encodeURIComponent(trimmedEmail)}`);
+        if (!emailCheck.available) {
+          void Swal.fire({
+            icon: 'error',
+            title: 'Datos en Uso',
+            text: 'El correo ingresado ya pertenece a otra persona registrada. Por favor, utiliza otro correo.',
+            confirmButtonColor: '#0f766e',
+          });
+          setValidatingRuts(false);
+          return;
+        }
+      }
+
+      if (phone.trim() !== loadedPhone) {
+        const { data: phoneCheck } = await api.get<{ available: boolean }>(`/guardians/check-phone/${encodeURIComponent(normalizedPhone)}`);
+        if (!phoneCheck.available) {
+          void Swal.fire({
+            icon: 'error',
+            title: 'Datos en Uso',
+            text: 'El teléfono ingresado ya pertenece a otra persona registrada. Por favor, utiliza otro teléfono.',
             confirmButtonColor: '#0f766e',
           });
           setValidatingRuts(false);
@@ -809,7 +917,11 @@ export function IcePage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 error={email.trim().length > 0 && !isGuardianEmailValid}
-                helperText={email.trim().length > 0 && !isGuardianEmailValid ? 'Ingresa un correo válido.' : 'Ejemplo: nombre@correo.cl'}
+                helperText={
+                  email.trim().length > 0 && !isGuardianEmailValid
+                    ? 'Ingresa un correo válido.'
+                    : 'Ejemplo: nombre@correo.cl'
+                }
                 required
                 fullWidth
               />
@@ -839,7 +951,11 @@ export function IcePage() {
                   },
                 }}
                 error={phone.trim().length > 0 && !isGuardianPhoneValid}
-                helperText={phone.trim().length > 0 && !isGuardianPhoneValid ? 'Deben ser 8 dígitos.' : ''}
+                helperText={
+                  phone.trim().length > 0 && !isGuardianPhoneValid
+                    ? 'Deben ser 8 dígitos.'
+                    : ''
+                }
                 required
                 fullWidth
               />
@@ -892,18 +1008,6 @@ export function IcePage() {
                   </Select>
                 </FormControl>
 
-               {adultWantsToSkate === 'no' && activeDependents.length === 0 && (
-                 <Alert severity="warning" sx={{ borderRadius: '12px' }}>
-                   Debe existir al menos un participante en la reserva.
-                 </Alert>
-               )}
-
-               {hasYoungDependentRequiringAdult && adultWantsToSkate === 'no' && (
-                 <Alert severity="warning" sx={{ borderRadius: '12px' }}>
-                   Si inscribes menores entre 5 y 7 años, el adulto también debe patinar.
-                 </Alert>
-               )}
-
                {adultWantsToSkate === 'si' && (
                  <FormControl fullWidth required>
                   <InputLabel id="adult-size-select-label">Talla de Calzado (Número de Patín)</InputLabel>
@@ -920,12 +1024,6 @@ export function IcePage() {
                     ))}
                   </Select>
                 </FormControl>
-              )}
-
-              {adultWantsToSkate === 'no' && (
-                <Alert severity="warning" sx={{ borderRadius: '12px' }}>
-                  Solo se contabilizarán los menores inscritos como participantes.
-                </Alert>
               )}
 
               <Divider sx={{ my: 1 }} />
@@ -956,12 +1054,6 @@ export function IcePage() {
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f766e', mb: 1 }}>
                     Registrar Acompañantes (Edades permitidas: 5 a 17 años)
                   </Typography>
-
-                  {duplicateRutInForm && (
-                    <Alert severity="error" sx={{ borderRadius: '12px' }}>
-                      No puedes repetir un mismo RUT dentro de la inscripción.
-                    </Alert>
-                  )}
 
                   <Stack spacing={2.5}>
                     {dependents.map((dependent, index) => (

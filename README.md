@@ -50,6 +50,8 @@ npm run start
 - no permitir RUT ya inscrito en el evento `selva`
 - prevalidacion de email con `GET /guardians/check-email/:email`
 - prevalidacion de telefono con `GET /guardians/check-phone/:phone`
+- email y telefono ya registrados informados con `SweetAlert`
+- advertencias y errores de validacion mostrados con `SweetAlert`
 - proteccion para no marcar como duplicado el email o telefono del mismo guardian cargado por RUT
 - solo se muestran horarios futuros
 
@@ -59,6 +61,10 @@ npm run start
 - RUT de acompanantes validos
 - no repetir RUT dentro del mismo formulario
 - no permitir RUT ya inscrito en el evento `patines`
+- prevalidacion de email con `GET /guardians/check-email/:email`
+- prevalidacion de telefono con `GET /guardians/check-phone/:phone`
+- email y telefono ya registrados informados con `SweetAlert`
+- advertencias y errores de validacion mostrados con `SweetAlert`
 - no permitir reservas sin participante real
 - acompanantes permitidos solo entre `5` y `17` anos
 - si hay menores entre `5` y `7`, el adulto debe marcar que tambien patina

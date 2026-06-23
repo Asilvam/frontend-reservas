@@ -1,6 +1,5 @@
 import { Add, DeleteOutlined, ArrowBack, ArrowForward, CheckCircle, Warning } from '@mui/icons-material';
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -18,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { api, socket } from '../services/api';
@@ -152,6 +151,7 @@ export function SelvaPage() {
   const [submitting, setSubmitting] = useState(false);
   const [validatingRuts, setValidatingRuts] = useState(false);
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
+  const lastDuplicateRutAlertRef = useRef<string | null>(null);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
@@ -353,6 +353,23 @@ export function SelvaPage() {
   const duplicateRutInForm = useMemo(() => {
     return getDuplicateRut([rut, ...activeDependents.map((dep) => dep.rut)]);
   }, [rut, activeDependents]);
+
+  useEffect(() => {
+    if (step !== 1 || !duplicateRutInForm) {
+      lastDuplicateRutAlertRef.current = null;
+      return;
+    }
+
+    if (lastDuplicateRutAlertRef.current === duplicateRutInForm) return;
+
+    lastDuplicateRutAlertRef.current = duplicateRutInForm;
+    void Swal.fire({
+      icon: 'error',
+      title: 'Límite de Reservas',
+      text: `El RUT ${duplicateRutInForm} está repetido en esta inscripción. Te recordamos que cada persona puede participar solo una vez por evento.`,
+      confirmButtonColor: '#0f766e',
+    });
+  }, [duplicateRutInForm, step]);
 
   const isStep1Valid = useMemo(() => {
     if (!isGuardianNameValid) return false;
@@ -757,7 +774,11 @@ export function SelvaPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 error={email.trim().length > 0 && !isGuardianEmailValid}
-                helperText={email.trim().length > 0 && !isGuardianEmailValid ? 'Ingresa un correo válido.' : 'Ejemplo: nombre@correo.cl'}
+                helperText={
+                  email.trim().length > 0 && !isGuardianEmailValid
+                    ? 'Ingresa un correo válido.'
+                    : 'Ejemplo: nombre@correo.cl'
+                }
                 required
                 fullWidth
               />
@@ -814,12 +835,6 @@ export function SelvaPage() {
                   <Typography variant="subtitle1" className="selva-wizard-section-title">
                     Acompañantes
                   </Typography>
-
-                  {duplicateRutInForm && (
-                    <Alert severity="error" sx={{ mb: 2, borderRadius: '12px' }}>
-                      No puedes repetir un mismo RUT dentro de la inscripción.
-                    </Alert>
-                  )}
 
                   <Stack spacing={1.5}>
                     {dependents.map((dependent, index) => (
