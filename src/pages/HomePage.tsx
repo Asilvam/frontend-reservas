@@ -41,8 +41,7 @@ export function HomePage() {
           <Button
             variant="contained"
             className="home-campaign-btn"
-            onClick={() => navigate('/home')}
-            disabled
+            onClick={() => navigate('/hielo')}
           >
             Reservar Pista de Hielo
           </Button>
