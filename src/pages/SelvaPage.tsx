@@ -469,6 +469,7 @@ export function SelvaPage() {
       setValidatingRuts(true);
       const cleanTutorRut = normalizeRut(rut);
       const dependentRuts = activeDependents.map(d => normalizeRut(d.rut));
+      const { data: tutorCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${cleanTutorRut}?eventType=selva`);
       if (tutorCheck.registered) {
         void Swal.fire({
           icon: 'error',
