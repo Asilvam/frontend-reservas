@@ -17,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { api, socket } from '../services/api';
@@ -44,7 +44,7 @@ const EMPTY_DEPENDENT: DependentFormItem = { name: '', rut: '', age: '' };
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
 const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
-const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/;
+const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
 
 function normalizeRut(rawRut: string) {
   return rawRut.replace(/-/g, '').trim().toUpperCase();
@@ -83,6 +83,24 @@ function isValidChileanRut(rawRut: string) {
   return providedDv === expectedDv;
 }
 
+function getDuplicateRut(values: string[]) {
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) continue;
+
+    const normalizedValue = normalizeRut(trimmedValue);
+    if (seen.has(normalizedValue)) {
+      return trimmedValue;
+    }
+
+    seen.add(normalizedValue);
+  }
+
+  return null;
+}
+
 export function SelvaPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -108,9 +126,13 @@ export function SelvaPage() {
   const [acceptMarketing, setAcceptMarketing] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [loadedRut, setLoadedRut] = useState('');
+  const [loadedEmail, setLoadedEmail] = useState('');
+  const [loadedPhone, setLoadedPhone] = useState('');
 
   const clearForm = () => {
     setLoadedRut('');
+    setLoadedEmail('');
+    setLoadedPhone('');
     setName('');
     setEmail('');
     setPhone('');
@@ -128,6 +150,8 @@ export function SelvaPage() {
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [validatingRuts, setValidatingRuts] = useState(false);
+  const [currentTimestamp, setCurrentTimestamp] = useState(0);
+  const lastDuplicateRutAlertRef = useRef<string | null>(null);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
@@ -152,6 +176,20 @@ export function SelvaPage() {
   }, []);
 
   // Alerta de normas obligatorias (Step 1)
+  useEffect(() => {
+    const updateCurrentTimestamp = () => {
+      setCurrentTimestamp(Date.now());
+    };
+
+    const timeoutId = window.setTimeout(updateCurrentTimestamp, 0);
+    const intervalId = window.setInterval(updateCurrentTimestamp, 60_000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   useEffect(() => {
     if (step === 1 && !rulesAccepted) {
       Swal.fire({
@@ -223,9 +261,12 @@ export function SelvaPage() {
           const { data } = await api.get<Guardian | null>(`/guardians/by-rut/${cleanRut}`);
           if (data) {
             setLoadedRut(cleanRut);
+            const normalizedPhone = data.phone ? data.phone.replace(/^\+56\s?9/, '').replace(/^56\s?9/, '') : '';
+            setLoadedEmail(data.email ?? '');
+            setLoadedPhone(normalizedPhone);
             if (data.name) setName(data.name);
             if (data.email) setEmail(data.email);
-            if (data.phone) setPhone(data.phone.replace(/^\+56\s?9/, '').replace(/^56\s?9/, ''));
+            if (normalizedPhone) setPhone(normalizedPhone);
             if (data.address) setAddress(data.address);
             if (data.commune) setCommune(data.commune);
             if (data.villa) setVilla(data.villa);
@@ -247,10 +288,8 @@ export function SelvaPage() {
         } catch (error) {
           console.error('Error fetching guardian by rut:', error);
         }
-      } else {
-        if (loadedRut) {
-          clearForm();
-        }
+      } else if (loadedRut) {
+        clearForm();
       }
     };
     fetchGuardianByRut();
@@ -262,7 +301,7 @@ export function SelvaPage() {
         setLoadingSchedules(true);
         const { data } = await api.get<Schedule[]>('/schedules?eventType=selva');
         setSchedules(data);
-      } catch (error) {
+      } catch {
         void Swal.fire({
           icon: 'error',
           title: 'Error',
@@ -311,6 +350,27 @@ export function SelvaPage() {
     return getEmailSuggestion(email);
   }, [email]);
 
+  const duplicateRutInForm = useMemo(() => {
+    return getDuplicateRut([rut, ...activeDependents.map((dep) => dep.rut)]);
+  }, [rut, activeDependents]);
+
+  useEffect(() => {
+    if (step !== 1 || !duplicateRutInForm) {
+      lastDuplicateRutAlertRef.current = null;
+      return;
+    }
+
+    if (lastDuplicateRutAlertRef.current === duplicateRutInForm) return;
+
+    lastDuplicateRutAlertRef.current = duplicateRutInForm;
+    void Swal.fire({
+      icon: 'error',
+      title: 'Límite de Reservas',
+      text: `El RUT ${duplicateRutInForm} está repetido en esta inscripción. Te recordamos que cada persona puede participar solo una vez por evento.`,
+      confirmButtonColor: '#0f766e',
+    });
+  }, [duplicateRutInForm, step]);
+
   const isStep1Valid = useMemo(() => {
     if (!isGuardianNameValid) return false;
     if (!isGuardianRutValid) return false;
@@ -319,55 +379,45 @@ export function SelvaPage() {
     if (address.trim().length < 2) return false;
     if (commune.trim().length < 2) return false;
     if (!areDependentsValid) return false;
+    if (duplicateRutInForm) return false;
     return true;
-  }, [areDependentsValid, isGuardianEmailValid, isGuardianPhoneValid, isGuardianRutValid, 
+  }, [areDependentsValid, duplicateRutInForm, isGuardianEmailValid, isGuardianPhoneValid, isGuardianRutValid, 
     isGuardianNameValid, 
     address, 
     commune,
-    emailSuggestion
   ]);
 
   // Date lists for selector (Step 2)
   const availableDateKeys = useMemo(() => {
-    const now = Date.now();
     const uniqueDates = Array.from(
       new Set(
         schedules
-          .filter((schedule) => new Date(schedule.startTime).getTime() > now)
+          .filter((schedule) => new Date(schedule.startTime).getTime() > currentTimestamp)
           .map((schedule) => toChileDateKey(schedule.startTime)),
       ),
     );
     return uniqueDates.sort((a, b) => a.localeCompare(b));
-  }, [schedules]);
+  }, [currentTimestamp, schedules]);
 
-  // Pre-fill default date selection
-  useEffect(() => {
-    if (availableDateKeys.length === 0) {
-      setSelectedDateKey('');
-      return;
-    }
-    if (preferredDateKey && availableDateKeys.includes(preferredDateKey)) {
-      setSelectedDateKey(preferredDateKey);
-      return;
-    }
-    if (!selectedDateKey || !availableDateKeys.includes(selectedDateKey)) {
-      setSelectedDateKey(availableDateKeys[0]);
-    }
+  const resolvedSelectedDateKey = useMemo(() => {
+    if (availableDateKeys.length === 0) return '';
+    if (selectedDateKey && availableDateKeys.includes(selectedDateKey)) return selectedDateKey;
+    if (preferredDateKey && availableDateKeys.includes(preferredDateKey)) return preferredDateKey;
+    return availableDateKeys[0];
   }, [availableDateKeys, preferredDateKey, selectedDateKey]);
 
   // Filter schedules by selected date
   const filteredSchedules = useMemo(() => {
-    if (!selectedDateKey) return [];
-    const now = Date.now();
+    if (!resolvedSelectedDateKey) return [];
     return schedules.filter(
       (schedule) =>
-        toChileDateKey(schedule.startTime) === selectedDateKey && new Date(schedule.startTime).getTime() > now,
+        toChileDateKey(schedule.startTime) === resolvedSelectedDateKey && new Date(schedule.startTime).getTime() > currentTimestamp,
     );
-  }, [schedules, selectedDateKey]);
+  }, [currentTimestamp, resolvedSelectedDateKey, schedules]);
 
   const selectedSchedule = useMemo(() => {
-    return schedules.find((s) => s._id === selectedScheduleId) ?? null;
-  }, [schedules, selectedScheduleId]);
+    return filteredSchedules.find((s) => s._id === selectedScheduleId) ?? null;
+  }, [filteredSchedules, selectedScheduleId]);
 
   const totalAttendees = 1 + activeDependents.length;
 
@@ -400,9 +450,18 @@ export function SelvaPage() {
   };
 
   const handleGoToStep2 = async () => {
-
     if (!isStep1Valid) {
       console.warn('[SelvaPage] Cancelado: el paso 1 no es válido.');
+      return;
+    }
+
+    if (duplicateRutInForm) {
+      void Swal.fire({
+        icon: 'error',
+        title: 'Límite de Reservas',
+        text: `El RUT ${duplicateRutInForm} está repetido en esta inscripción. Te recordamos que cada persona puede participar solo una vez por evento.`,
+        confirmButtonColor: '#0f766e',
+      });
       return;
     }
 
@@ -410,9 +469,6 @@ export function SelvaPage() {
       setValidatingRuts(true);
       const cleanTutorRut = normalizeRut(rut);
       const dependentRuts = activeDependents.map(d => normalizeRut(d.rut));
-      
-      // Validar RUT del tutor
-      const { data: tutorCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${cleanTutorRut}?eventType=selva`);
       if (tutorCheck.registered) {
         void Swal.fire({
           icon: 'error',
@@ -439,13 +495,41 @@ export function SelvaPage() {
         }
       }
 
+      if (trimmedEmail !== loadedEmail) {
+        const { data: emailCheck } = await api.get<{ available: boolean }>(`/guardians/check-email/${encodeURIComponent(trimmedEmail)}`);
+        if (!emailCheck.available) {
+          void Swal.fire({
+            icon: 'error',
+            title: 'Datos en Uso',
+            text: 'El correo ingresado ya pertenece a otra persona registrada. Por favor, utiliza otro correo.',
+            confirmButtonColor: '#0f766e',
+          });
+          setValidatingRuts(false);
+          return;
+        }
+      }
+
+      if (phone.trim() !== loadedPhone) {
+        const { data: phoneCheck } = await api.get<{ available: boolean }>(`/guardians/check-phone/${encodeURIComponent(normalizedPhone)}`);
+        if (!phoneCheck.available) {
+          void Swal.fire({
+            icon: 'error',
+            title: 'Datos en Uso',
+            text: 'El teléfono ingresado ya pertenece a otra persona registrada. Por favor, utiliza otro teléfono.',
+            confirmButtonColor: '#0f766e',
+          });
+          setValidatingRuts(false);
+          return;
+        }
+      }
+
       setStep(2);
     } catch (error) {
       console.error('Error validating RUTs:', error);
       void Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'Hubo un problema al validar los RUTs de la reserva. Por favor, inténtelo de nuevo.',
+        text: 'Hubo un problema al validar los datos de la reserva. Por favor, inténtelo de nuevo.',
         confirmButtonColor: '#0f766e',
       });
     } finally {
@@ -499,7 +583,7 @@ export function SelvaPage() {
             reservationId = resData._id;
             break;
           }
-        } catch (pollError) {
+        } catch {
           // Ignore errors during polling, retry
         }
         await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -543,26 +627,22 @@ export function SelvaPage() {
           ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
           : '';
 
+      const normalizedBackendMessage = backendMessage.toLowerCase();
+      const submitErrorText = normalizedBackendMessage.includes('email')
+        ? 'El correo ingresado ya pertenece a otra persona registrada. Por favor, utiliza otro correo.'
+        : normalizedBackendMessage.includes('phone') || normalizedBackendMessage.includes('tel')
+          ? 'El teléfono ingresado ya pertenece a otra persona registrada. Por favor, utiliza otro teléfono.'
+          : backendMessage || 'Hubo un problema al procesar tu solicitud. Intenta nuevamente.';
+
       void Swal.fire({
         icon: 'error',
         title: 'Error al inscribir',
-        text: backendMessage || 'Hubo un problema al procesar tu solicitud. Intenta nuevamente.',
+        text: submitErrorText,
         confirmButtonColor: '#0f766e',
       });
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleDownloadQr = () => {
-    if (!createdReservation) return;
-    const url = `${api.defaults.baseURL}reservations/${createdReservation.id}/qrcode`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `reserva-${createdReservation.id}.png`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const handleGoHome = () => {
@@ -671,7 +751,11 @@ export function SelvaPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 error={email.trim().length > 0 && !isGuardianEmailValid}
-                helperText={email.trim().length > 0 && !isGuardianEmailValid ? 'Ingresa un correo válido.' : 'Ejemplo: nombre@correo.cl'}
+                helperText={
+                  email.trim().length > 0 && !isGuardianEmailValid
+                    ? 'Ingresa un correo válido.'
+                    : 'Ejemplo: nombre@correo.cl'
+                }
                 required
                 fullWidth
               />
@@ -728,6 +812,7 @@ export function SelvaPage() {
                   <Typography variant="subtitle1" className="selva-wizard-section-title">
                     Acompañantes
                   </Typography>
+
                   <Stack spacing={1.5}>
                     {dependents.map((dependent, index) => (
                       <Box key={`dependent-${index}`} className="selva-wizard-dependent-row">
@@ -825,7 +910,7 @@ export function SelvaPage() {
                     <InputLabel id="selva-date-label">Fecha de reserva</InputLabel>
                     <Select
                       labelId="selva-date-label"
-                      value={selectedDateKey}
+                      value={resolvedSelectedDateKey}
                       label="Fecha de reserva"
                       onChange={(event) => {
                         setSelectedDateKey(event.target.value);
