@@ -234,15 +234,18 @@ export function IcePage() {
               <ul style="margin: 0; padding-left: 15px; list-style-type: disc;">
                 <li style="margin-bottom: 8px;"><strong>No está permitido el ingreso</strong> de niños y niñas menores de 5 años.</li>
                 <li style="margin-bottom: 8px;">Los niños y niñas de <strong>5 a 7 años</strong> deben ingresar a la pista acompañados por un adulto responsable (mayor de 18 años).</li>
-                <li style="margin-bottom: 8px;">Los niños y niñas de <strong>8 a 13 años</strong> deben permanecer acompañados por un adulto responsable dentro del recinto.</li>
+                <li style="margin-bottom: 8px;">Los niños y niñas de <strong>8 a 13 años</strong> deben asistir acompañados por un adulto responsable mayor de 18 años. No es necesario que el adulto responsable ingrese a patinar, pero sí que permanezca en el recinto durante la actividad.</li>
                 <li style="margin-bottom: 8px;">Las <strong>mujeres embarazadas</strong> no pueden ingresar a la pista.</li>
-                <li style="margin-bottom: 0;">Para ingresar a la pista de hielo es <strong>obligatorio el uso de calcetines largos, pantalones largos y gruesos, y chaqueta o polerón de manga larga</strong>.</li>
+                <li style="margin-bottom: 8px;">Para ingresar a la Pista de Hielo es <strong>obligatorio el uso de calcetines largos, pantalones largos y gruesos, y chaqueta o polerón de manga larga</strong>.</li>
+                <li style="margin-bottom: 8px;">El <strong>uso de casco es obligatorio</strong> para niños, niñas y adultos.</li>
+                <li style="margin-bottom: 8px;"><strong>No se permite ingresar a la Pista de Hielo con celulares, gorros, lentes de sol, cámaras, alimentos, bebidas, mochilas, carteras u otros objetos</strong>. Habrá casilleros disponibles para el resguardo de artículos personales.</li>
+                <li style="margin-bottom: 0;">La organización no se responsabiliza por la pérdida, extravío o daño de objetos personales.</li>
               </ul>
             </div>
             <div style="margin-top: 15px; display: flex; align-items: flex-start; gap: 10px;">
               <input type="checkbox" id="rules-checkbox" style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px; flex-shrink: 0;" />
               <label for="rules-checkbox" style="cursor: pointer; font-weight: 700; font-size: 0.85rem; color: #0f766e; user-select: none; line-height: 1.4;">
-                Declaro haber leído y estar en conocimiento de las normas señaladas.
+                Declaro haber leído y estar en conocimiento de las normas señaladas, comprometiéndome a cumplirlas.
               </label>
             </div>
           </div>
