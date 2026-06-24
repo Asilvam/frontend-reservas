@@ -25,6 +25,7 @@ import type { CreateGuardianPayload, Schedule, Guardian } from '../types';
 import { isValidDateKey, toChileDateKey, formatChileDateLabel, formatChileTime } from '../utils/datetime';
 import { hasRepetitiveSpam } from '../utils/name';
 import { getEmailSuggestion } from '../utils/email';
+import { enterAdmission, formatEtaLabel, getAdmissionStatus, leaveAdmission, submitAdmission } from '../utils/admission';
 import fondoImage from '../assets/Fondo.jpg';
 import iceWebHeader from '../assets/Hielo.png';
 import institutionalLogos from '../assets/logos.png';
@@ -49,6 +50,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
 const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
 const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
+const EVENT_TYPE = 'patines';
 
 function normalizeRut(rawRut: string) {
   return rawRut.replace(/-/g, '').trim().toUpperCase();
@@ -98,6 +100,33 @@ function getDuplicateRut(values: string[]) {
   }
 
   return null;
+}
+
+function formatCountdownLabel(totalSeconds: number) {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const minutes = Math.floor(safeSeconds / 60)
+    .toString()
+    .padStart(2, '0');
+  const seconds = (safeSeconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
+function getCountdownColor(totalSeconds: number) {
+  if (totalSeconds <= 10) return 'error.main';
+  if (totalSeconds <= 20) return 'warning.main';
+  return 'success.main';
+}
+
+function getCountdownBackground(totalSeconds: number) {
+  if (totalSeconds <= 10) return 'rgba(220, 38, 38, 0.12)';
+  if (totalSeconds <= 20) return 'rgba(217, 119, 6, 0.12)';
+  return 'rgba(5, 150, 105, 0.12)';
+}
+
+function getCountdownBorder(totalSeconds: number) {
+  if (totalSeconds <= 10) return 'rgba(220, 38, 38, 0.35)';
+  if (totalSeconds <= 20) return 'rgba(217, 119, 6, 0.35)';
+  return 'rgba(5, 150, 105, 0.35)';
 }
 
 export function IcePage() {
@@ -162,6 +191,8 @@ export function IcePage() {
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [validatingRuts, setValidatingRuts] = useState(false);
+  const [admissionSessionId, setAdmissionSessionId] = useState<string | null>(null);
+  const [admissionRemainingSec, setAdmissionRemainingSec] = useState<number | null>(null);
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
   const hasShownNoParticipantsWarningRef = useRef(false);
   const hasShownYoungDependentWarningRef = useRef(false);
@@ -189,6 +220,165 @@ export function IcePage() {
       socket.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const ensureAdmission = async () => {
+      if (step !== 1 || !rulesAccepted || admissionSessionId) {
+        return;
+      }
+
+      try {
+        const enterResponse = await enterAdmission(EVENT_TYPE);
+        if (cancelled) return;
+
+        if (enterResponse.admitted) {
+          setAdmissionSessionId(enterResponse.sessionId);
+          const remainingSec = Math.max(
+            0,
+            Math.ceil((new Date(enterResponse.expiresAt).getTime() - Date.now()) / 1000),
+          );
+          setAdmissionRemainingSec(remainingSec);
+          return;
+        }
+
+        const modalPromise = Swal.fire({
+          icon: 'info',
+          title: 'Alta demanda',
+          html: `
+            <p style="margin-bottom:8px;">Estamos recibiendo muchas solicitudes.</p>
+            <p id="admission-wait-message" style="margin:0;color:#475569;">Calculando tiempo de espera...</p>
+          `,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+        });
+
+        let status = await getAdmissionStatus(EVENT_TYPE, enterResponse.sessionId);
+        while (!cancelled) {
+          if (status.status === 'WRITING') {
+            Swal.close();
+            await modalPromise;
+            setAdmissionSessionId(enterResponse.sessionId);
+            setAdmissionRemainingSec(status.remainingSec);
+            return;
+          }
+
+          if (status.status === 'EXPIRED') {
+            Swal.close();
+            await modalPromise;
+            await Swal.fire({
+              icon: 'warning',
+              title: 'Tiempo de espera agotado',
+              text: 'Tu turno en la fila expiró 💣. Intenta nuevamente.',
+              confirmButtonColor: '#0f766e',
+            });
+            navigate('/home');
+            return;
+          }
+
+          if (status.status === 'WAITING') {
+            const etaText = formatEtaLabel(status.etaSec);
+            Swal.update({
+              html: `
+                <p style="margin-bottom:8px;">Estamos recibiendo muchas solicitudes.</p>
+                <p id="admission-wait-message" style="margin:0;color:#475569;">Posición #${status.position}. Espera sugerida: ${etaText}.</p>
+                <p style="margin:8px 0 0;color:#64748b;font-size:0.9rem;">Personas completando formulario ahora: ${status.writersActive}</p>
+              `,
+            });
+            await new Promise((resolve) => setTimeout(resolve, status.retryAfterSec * 1000));
+            status = await getAdmissionStatus(EVENT_TYPE, enterResponse.sessionId);
+            continue;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          status = await getAdmissionStatus(EVENT_TYPE, enterResponse.sessionId);
+        }
+
+        Swal.close();
+        await modalPromise;
+      } catch (error) {
+        if (cancelled) return;
+        const waitlistFullError = error as { code?: string; message?: string };
+        if (waitlistFullError?.code === 'WAITLIST_FULL') {
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Sin disponibilidad',
+            text: waitlistFullError.message || 'Sitio sin disponibilidad, intenta más tarde.',
+            confirmButtonColor: '#0f766e',
+          });
+          navigate('/home');
+          return;
+        }
+        void Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No pudimos obtener un turno de ingreso. Recarga la pagina e intenta nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+      }
+    };
+
+    void ensureAdmission();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [admissionSessionId, rulesAccepted, step]);
+
+  useEffect(() => {
+    if (!admissionSessionId || step !== 1) {
+      return;
+    }
+
+    let cancelled = false;
+    const intervalId = window.setInterval(async () => {
+      if (cancelled) return;
+      try {
+        const status = await getAdmissionStatus(EVENT_TYPE, admissionSessionId);
+        if (cancelled) return;
+        if (status.status === 'EXPIRED') {
+          cancelled = true;
+          window.clearInterval(intervalId);
+          setAdmissionRemainingSec(0);
+          setAdmissionSessionId(null);
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Tiempo agotado',
+            text: 'Tu turno en el formulario expiró (60 segundos) 💣. Debes volver a ingresar.',
+            confirmButtonColor: '#0f766e',
+          });
+          navigate('/home');
+          return;
+        }
+        if (status.status === 'WRITING') {
+          setAdmissionRemainingSec(status.remainingSec);
+        }
+      } catch {
+        // Silent retry on next tick
+      }
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [admissionSessionId, step]);
+
+  useEffect(() => {
+    return () => {
+      if (admissionSessionId) {
+        void leaveAdmission(EVENT_TYPE, admissionSessionId);
+      }
+    };
+  }, [admissionSessionId]);
+
+  useEffect(() => {
+    if (!admissionSessionId) {
+      setAdmissionRemainingSec(null);
+    }
+  }, [admissionSessionId]);
 
   useEffect(() => {
     const updateCurrentTimestamp = () => {
@@ -578,22 +768,6 @@ export function IcePage() {
   };
 
   const handleGoToStep2 = async () => {
-    console.log('[IcePage] Click en handleGoToStep2');
-    console.log('[IcePage] isStep1Valid:', isStep1Valid);
-    console.log('[IcePage] Datos:', {
-      rut,
-      name,
-      email,
-      phone,
-      isAccompanied,
-      dependents,
-      isGuardianNameValid,
-      isGuardianRutValid,
-      isGuardianEmailValid,
-      isGuardianPhoneValid,
-      areDependentsValid
-    });
-
     if (!isStep1Valid) {
       console.warn('[IcePage] Cancelado: el paso 1 no es válido.');
       return;
@@ -610,18 +784,24 @@ export function IcePage() {
     }
 
     try {
-      console.log('[IcePage] Validating RUTs for tutor and dependents before proceeding to schedule selection...');
       setValidatingRuts(true);
-      const cleanTutorRut = normalizeRut(rut);
-      const dependentRuts = activeDependents.map(d => normalizeRut(d.rut));
+      const cleanTutorRut = formatRut(rut).toUpperCase();
+      const dependentRuts = activeDependents.map((d) => formatRut(d.rut).toUpperCase());
       const trimmedEmail = email.trim();
       const normalizedPhone = `+569${phone.trim()}`;
-      console.log('[IcePage] RUTs a validar:', { cleanTutorRut, dependentRuts });
-      
-      // Validar RUT del tutor
-      const { data: tutorCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${cleanTutorRut}?eventType=patines`);
-      console.log('[IcePage] Resultado tutor:', tutorCheck);
-      if (tutorCheck.registered) {
+
+      const { data: precheck } = await api.post<{
+        rutRegisteredByValue: Record<string, boolean>;
+        emailAvailable: boolean;
+        phoneAvailable: boolean;
+      }>('/reservations/precheck', {
+        eventType: EVENT_TYPE,
+        ruts: [cleanTutorRut, ...dependentRuts],
+        email: trimmedEmail,
+        phone: normalizedPhone,
+      });
+
+      if (precheck.rutRegisteredByValue[cleanTutorRut]) {
         void Swal.fire({
           icon: 'error',
           title: 'Límite de Reservas',
@@ -632,10 +812,8 @@ export function IcePage() {
         return;
       }
 
-      // Validar RUTs de acompañantes
       for (const depRut of dependentRuts) {
-        const { data: depCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${depRut}?eventType=patines`);
-        if (depCheck.registered) {
+        if (precheck.rutRegisteredByValue[depRut]) {
           void Swal.fire({
             icon: 'error',
             title: 'Límite de Reservas',
@@ -648,8 +826,7 @@ export function IcePage() {
       }
 
       if (trimmedEmail !== loadedEmail) {
-        const { data: emailCheck } = await api.get<{ available: boolean }>(`/guardians/check-email/${encodeURIComponent(trimmedEmail)}`);
-        if (!emailCheck.available) {
+        if (!precheck.emailAvailable) {
           void Swal.fire({
             icon: 'error',
             title: 'Datos en Uso',
@@ -662,8 +839,7 @@ export function IcePage() {
       }
 
       if (phone.trim() !== loadedPhone) {
-        const { data: phoneCheck } = await api.get<{ available: boolean }>(`/guardians/check-phone/${encodeURIComponent(normalizedPhone)}`);
-        if (!phoneCheck.available) {
+        if (!precheck.phoneAvailable) {
           void Swal.fire({
             icon: 'error',
             title: 'Datos en Uso',
@@ -674,6 +850,35 @@ export function IcePage() {
           return;
         }
       }
+
+      if (!admissionSessionId) {
+        setAdmissionRemainingSec(null);
+        void Swal.fire({
+          icon: 'warning',
+          title: 'Espera tu turno',
+          text: 'Aun no tienes cupo para continuar. Espera un momento e intenta nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+        return;
+      }
+
+      const submitResult = await submitAdmission(EVENT_TYPE, admissionSessionId);
+      if (!submitResult.success) {
+        setAdmissionSessionId(null);
+        setAdmissionRemainingSec(null);
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Tiempo agotado',
+          text: 'Tu turno en el formulario expiró 💣. Debes volver a ingresar.',
+          confirmButtonColor: '#0f766e',
+        });
+        navigate('/home');
+        return;
+      }
+
+      await leaveAdmission(EVENT_TYPE, admissionSessionId);
+      setAdmissionSessionId(null);
+      setAdmissionRemainingSec(null);
 
       setStep(2);
     } catch (error) {
@@ -1149,16 +1354,53 @@ export function IcePage() {
                 </Box>
               )}
 
-              <Box className="selva-wizard-actions">
+              <Box
+                className="selva-wizard-actions"
+                sx={{
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
+                  gap: 1,
+                }}
+              >
+                {admissionSessionId && admissionRemainingSec !== null && (
+                  <Box
+                    sx={{
+                      mb: 0,
+                      px: 1.2,
+                      py: 0.45,
+                      minHeight: '44px',
+                      width: { xs: '100%', sm: 'auto' },
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      alignSelf: { xs: 'stretch', sm: 'flex-start' },
+                      textAlign: 'center',
+                      borderRadius: '10px',
+                      fontWeight: 800,
+                      fontSize: '0.78rem',
+                      letterSpacing: '0.01em',
+                      color: getCountdownColor(admissionRemainingSec),
+                      backgroundColor: getCountdownBackground(admissionRemainingSec),
+                      border: `1px solid ${getCountdownBorder(admissionRemainingSec)}`,
+                    }}
+                  >
+                    Tu turno expira en {formatCountdownLabel(admissionRemainingSec)}
+                  </Box>
+                )}
+                {!admissionSessionId && rulesAccepted && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                    Esperando turno para continuar al siguiente paso...
+                  </Typography>
+                )}
                 <Button
                   variant="contained"
                   onClick={handleGoToStep2}
-                  disabled={!isStep1Valid || validatingRuts}
+                  disabled={!isStep1Valid || validatingRuts || !admissionSessionId}
                   className="selva-wizard-next-btn"
                   fullWidth
                   endIcon={validatingRuts ? <CircularProgress size={20} color="inherit" /> : <ArrowForward />}
                 >
-                  {validatingRuts ? 'Validando...' : 'Continuar'}
+                  {validatingRuts ? 'Validando...' : !admissionSessionId ? 'Esperando turno...' : 'Continuar'}
                 </Button>
               </Box>
             </Stack>
