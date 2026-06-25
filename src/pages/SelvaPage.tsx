@@ -255,8 +255,8 @@ export function SelvaPage() {
             await modalPromise;
             await Swal.fire({
               icon: 'warning',
-              title: 'Tiempo de espera agotado',
-              text: 'Tu turno en la fila expiró 💣. Intenta nuevamente.',
+              title: 'Sesion expirada',
+              text: 'Vuelve a ingresar para intentarlo nuevamente.',
               confirmButtonColor: '#0f766e',
             });
             navigate('/home');
@@ -313,7 +313,7 @@ export function SelvaPage() {
   }, [admissionSessionId, rulesAccepted, step]);
 
   useEffect(() => {
-    if (!admissionSessionId || step !== 1) {
+    if (!admissionSessionId || step > 3) {
       return;
     }
 
@@ -330,8 +330,8 @@ export function SelvaPage() {
           setAdmissionSessionId(null);
           await Swal.fire({
             icon: 'warning',
-            title: 'Tiempo agotado',
-            text: 'Tu turno en el formulario expiró (60 segundos) 💣. Debes volver a ingresar.',
+            title: 'Sesion expirada',
+            text: 'Vuelve a ingresar para intentarlo nuevamente.',
             confirmButtonColor: '#0f766e',
           });
           navigate('/home');
@@ -734,24 +734,6 @@ export function SelvaPage() {
         return;
       }
 
-      const submitResult = await submitAdmission(EVENT_TYPE, admissionSessionId);
-      if (!submitResult.success) {
-        setAdmissionSessionId(null);
-        setAdmissionRemainingSec(null);
-        await Swal.fire({
-          icon: 'warning',
-          title: 'Tiempo agotado',
-          text: 'Tu turno en el formulario expiró 💣. Debes volver a ingresar.',
-          confirmButtonColor: '#0f766e',
-        });
-        navigate('/home');
-        return;
-      }
-
-      await leaveAdmission(EVENT_TYPE, admissionSessionId);
-      setAdmissionSessionId(null);
-      setAdmissionRemainingSec(null);
-
       setStep(2);
     } catch (error) {
       console.error('Error validating RUTs:', error);
@@ -772,6 +754,35 @@ export function SelvaPage() {
 
     try {
       setSubmitting(true);
+
+      if (!admissionSessionId) {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Sesion expirada',
+          text: 'Vuelve a ingresar para intentarlo nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+        navigate('/home');
+        return;
+      }
+
+      const submitResult = await submitAdmission(EVENT_TYPE, admissionSessionId);
+      if (!submitResult.success) {
+        setAdmissionSessionId(null);
+        setAdmissionRemainingSec(null);
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Sesion expirada',
+          text: 'Vuelve a ingresar para intentarlo nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+        navigate('/home');
+        return;
+      }
+
+      await leaveAdmission(EVENT_TYPE, admissionSessionId);
+      setAdmissionSessionId(null);
+      setAdmissionRemainingSec(null);
 
       // 1. Create guardian (sin dependientes asociados en su ficha)
       const guardianPayload: CreateGuardianPayload = {
@@ -907,6 +918,34 @@ export function SelvaPage() {
           )}
 
           {step <= 3 && <Divider className="selva-step-divider" />}
+
+          {step <= 3 && admissionSessionId && admissionRemainingSec !== null && (
+            <Box
+              sx={{
+                mt: 0.25,
+                mb: 1.2,
+                px: 1.2,
+                py: 0.45,
+                minHeight: '44px',
+                width: '100%',
+                maxWidth: '320px',
+                mx: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.78rem',
+                letterSpacing: '0.01em',
+                color: getCountdownColor(admissionRemainingSec),
+                backgroundColor: getCountdownBackground(admissionRemainingSec),
+                border: `1px solid ${getCountdownBorder(admissionRemainingSec)}`,
+              }}
+            >
+              Tu turno expira en {formatCountdownLabel(admissionRemainingSec)}
+            </Box>
+          )}
 
           {/* STEP 1: Formulario de datos */}
           {step === 1 && (
@@ -1113,31 +1152,6 @@ export function SelvaPage() {
                   gap: 1,
                 }}
               >
-                {admissionSessionId && admissionRemainingSec !== null && (
-                  <Box
-                    sx={{
-                      mb: 0,
-                      px: 1.2,
-                      py: 0.45,
-                      minHeight: '44px',
-                      width: { xs: '100%', sm: 'auto' },
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      alignSelf: { xs: 'stretch', sm: 'flex-start' },
-                      textAlign: 'center',
-                      borderRadius: '10px',
-                      fontWeight: 800,
-                      fontSize: '0.78rem',
-                      letterSpacing: '0.01em',
-                      color: getCountdownColor(admissionRemainingSec),
-                      backgroundColor: getCountdownBackground(admissionRemainingSec),
-                      border: `1px solid ${getCountdownBorder(admissionRemainingSec)}`,
-                    }}
-                  >
-                    Tu turno expira en {formatCountdownLabel(admissionRemainingSec)}
-                  </Box>
-                )}
                 {!admissionSessionId && rulesAccepted && (
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
                     Esperando turno para continuar al siguiente paso...
