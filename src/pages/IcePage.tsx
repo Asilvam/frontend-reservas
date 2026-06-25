@@ -36,7 +36,7 @@ import '../styles/spot-selector.css';
 const MAX_DEPENDENTS = 3;
 const SHOE_SIZES = Array.from({ length: 47 - 25 + 1 }, (_, i) => 25 + i); // [25, 26, ..., 47]
 const MIN_DEPENDENT_AGE = 5;
-const MAX_DEPENDENT_AGE = 17;
+const MAX_DEPENDENT_AGE = 100;
 
 type DependentFormItem = {
   name: string;
@@ -585,7 +585,7 @@ export function IcePage() {
   const hasYoungDependentRequiringAdult = useMemo(() => {
     return activeDependents.some((dep) => {
       const age = Number(dep.age);
-      return !isNaN(age) && age >= MIN_DEPENDENT_AGE && age <= 7;
+      return !isNaN(age) && age >= MIN_DEPENDENT_AGE && age <= 13;
     });
   }, [activeDependents]);
 
@@ -622,7 +622,7 @@ export function IcePage() {
     void Swal.fire({
       icon: 'warning',
       title: 'Acompañamiento obligatorio',
-      text: 'Si inscribes menores entre 5 y 7 años, el adulto también debe patinar.',
+      text: 'Los menores de 13 años requieren que el adulto también patine.',
       confirmButtonColor: '#0f766e',
     });
   }, [adultWantsToSkate, hasYoungDependentRequiringAdult, step]);
@@ -1313,7 +1313,7 @@ export function IcePage() {
                     className="selva-custom-checkbox"
                   />
                 }
-                label="¿Viene acompañado por menores de edad?"
+                label="¿Viene acompañado?"
                 sx={{
                   '& .MuiTypography-root': { fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' },
                 }}
@@ -1322,7 +1322,7 @@ export function IcePage() {
               {isAccompanied && (
                 <Box className="selva-wizard-dependents">
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f766e', mb: 1 }}>
-                    Registrar Acompañantes (Edades permitidas: 5 a 17 años)
+                    Registrar Acompañantes (Edades permitidas: 5 a 100 años)
                   </Typography>
 
                   <Stack spacing={2.5}>
@@ -1366,7 +1366,7 @@ export function IcePage() {
                              error={dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < MIN_DEPENDENT_AGE || Number(dependent.age) > MAX_DEPENDENT_AGE)}
                              helperText={
                                dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < MIN_DEPENDENT_AGE || Number(dependent.age) > MAX_DEPENDENT_AGE)
-                                 ? 'Edad permitida: 5 a 17 años'
+                                 ? 'Edad permitida: 5 a 100 años'
                                  : ''
                              }
                            />
