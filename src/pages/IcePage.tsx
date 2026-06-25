@@ -17,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { api, socket } from '../services/api';
@@ -26,6 +26,7 @@ import { isValidDateKey, toChileDateKey, formatChileDateLabel, formatChileTime }
 import { hasRepetitiveSpam } from '../utils/name';
 import { getEmailSuggestion } from '../utils/email';
 import { enterAdmission, formatEtaLabel, getAdmissionStatus, leaveAdmission, submitAdmission } from '../utils/admission';
+import { isAllSoldOut } from '../utils/schedules';
 import fondoImage from '../assets/Fondo.jpg';
 import iceWebHeader from '../assets/Hielo.png';
 import institutionalLogos from '../assets/logos.png';
@@ -198,28 +199,47 @@ export function IcePage() {
   const hasShownYoungDependentWarningRef = useRef(false);
   const hasShownAdultNoWarningRef = useRef(false);
   const lastDuplicateRutAlertRef = useRef<string | null>(null);
+  const soldOutShownRef = useRef(false);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
+
+  const showSoldOutModal = useCallback(async () => {
+    if (soldOutShownRef.current) return;
+    soldOutShownRef.current = true;
+    await Swal.fire({
+      icon: 'warning',
+      title: 'Sin disponibilidad',
+      text: 'Todos los cupos para este evento están agotados. Vuelve a intentarlo más tarde.',
+      confirmButtonColor: '#0f766e',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+    });
+    navigate('/home');
+  }, [navigate]);
 
   // Real-time updates via WebSocket
   useEffect(() => {
     socket.connect();
     const onSpotsUpdated = (payload: { scheduleId: string; remaining: number }) => {
-      setSchedules((prev) =>
-        prev.map((schedule) =>
+      setSchedules((prev) => {
+        const next = prev.map((schedule) =>
           schedule._id === payload.scheduleId
             ? { ...schedule, availableSpots: payload.remaining }
             : schedule,
-        ),
-      );
+        );
+        if (isAllSoldOut(next)) {
+          void showSoldOutModal();
+        }
+        return next;
+      });
     };
     socket.on('spots_updated', onSpotsUpdated);
     return () => {
       socket.off('spots_updated', onSpotsUpdated);
       socket.disconnect();
     };
-  }, []);
+  }, [showSoldOutModal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -271,7 +291,7 @@ export function IcePage() {
             await Swal.fire({
               icon: 'warning',
               title: 'Tiempo de espera agotado',
-              text: 'Tu turno en la fila expiró 💣. Intenta nuevamente.',
+              text: 'Vuelve a ingresar para intentarlo nuevamente.\n.',
               confirmButtonColor: '#0f766e',
             });
             navigate('/home');
@@ -328,7 +348,7 @@ export function IcePage() {
   }, [admissionSessionId, rulesAccepted, step]);
 
   useEffect(() => {
-    if (!admissionSessionId || step !== 1) {
+    if (!admissionSessionId || step > 3) {
       return;
     }
 
@@ -345,8 +365,8 @@ export function IcePage() {
           setAdmissionSessionId(null);
           await Swal.fire({
             icon: 'warning',
-            title: 'Tiempo agotado',
-            text: 'Tu turno en el formulario expiró (60 segundos) 💣. Debes volver a ingresar.',
+            title: 'Sesion expirada',
+            text: 'Vuelve a ingresar para intentarlo nuevamente.',
             confirmButtonColor: '#0f766e',
           });
           navigate('/home');
@@ -519,6 +539,9 @@ export function IcePage() {
         const { data } = await api.get<Schedule[]>('/schedules?eventType=patines');
         console.log('[IcePage] Schedules:', data);
         setSchedules(data);
+        if (isAllSoldOut(data)) {
+          void showSoldOutModal();
+        }
       } catch {
           void Swal.fire({
             icon: 'error',
@@ -531,7 +554,7 @@ export function IcePage() {
       }
     };
     fetchSchedules();
-  }, []);
+  }, [showSoldOutModal]);
 
   // Dependents validations
   const activeDependents = useMemo(() => {
@@ -862,6 +885,38 @@ export function IcePage() {
         return;
       }
 
+      setStep(2);
+    } catch (error) {
+      console.error('Error validating RUTs:', error);
+      void Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Hubo un problema. Por favor, inténtelo de nuevo.',
+        confirmButtonColor: '#0f766e',
+      });
+    } finally {
+      setValidatingRuts(false);
+    }
+  };
+
+  // Main Submit handler (Step 3 Confirm)
+  const handleSubmitEnrollment = async () => {
+    if (!isStep1Valid || !isStep2Valid || !selectedSchedule) return;
+
+    try {
+      setSubmitting(true);
+
+      if (!admissionSessionId) {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Tiempo agotado',
+          text: 'Tu turno en el formulario expiró 💣. Debes volver a ingresar.',
+          confirmButtonColor: '#0f766e',
+        });
+        navigate('/home');
+        return;
+      }
+
       const submitResult = await submitAdmission(EVENT_TYPE, admissionSessionId);
       if (!submitResult.success) {
         setAdmissionSessionId(null);
@@ -879,27 +934,6 @@ export function IcePage() {
       await leaveAdmission(EVENT_TYPE, admissionSessionId);
       setAdmissionSessionId(null);
       setAdmissionRemainingSec(null);
-
-      setStep(2);
-    } catch (error) {
-      console.error('Error validating RUTs:', error);
-      void Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Hubo un problema al validar los RUTs de la reserva. Por favor, inténtelo de nuevo.',
-        confirmButtonColor: '#0f766e',
-      });
-    } finally {
-      setValidatingRuts(false);
-    }
-  };
-
-  // Main Submit handler (Step 3 Confirm)
-  const handleSubmitEnrollment = async () => {
-    if (!isStep1Valid || !isStep2Valid || !selectedSchedule) return;
-
-    try {
-      setSubmitting(true);
 
       // 1. Create guardian (sin dependientes en su ficha)
       const guardianPayload: CreateGuardianPayload = {
@@ -1048,6 +1082,34 @@ export function IcePage() {
           )}
 
           {step <= 3 && <Divider className="selva-step-divider" />}
+
+          {step <= 3 && admissionSessionId && admissionRemainingSec !== null && (
+            <Box
+              sx={{
+                mt: 0.25,
+                mb: 1.2,
+                px: 1.2,
+                py: 0.45,
+                minHeight: '44px',
+                width: '100%',
+                maxWidth: '320px',
+                mx: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.78rem',
+                letterSpacing: '0.01em',
+                color: getCountdownColor(admissionRemainingSec),
+                backgroundColor: getCountdownBackground(admissionRemainingSec),
+                border: `1px solid ${getCountdownBorder(admissionRemainingSec)}`,
+              }}
+            >
+              Tu turno expira en {formatCountdownLabel(admissionRemainingSec)}
+            </Box>
+          )}
 
           {/* STEP 1: Formulario de datos */}
           {step === 1 && (
@@ -1362,31 +1424,6 @@ export function IcePage() {
                   gap: 1,
                 }}
               >
-                {admissionSessionId && admissionRemainingSec !== null && (
-                  <Box
-                    sx={{
-                      mb: 0,
-                      px: 1.2,
-                      py: 0.45,
-                      minHeight: '44px',
-                      width: { xs: '100%', sm: 'auto' },
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      alignSelf: { xs: 'stretch', sm: 'flex-start' },
-                      textAlign: 'center',
-                      borderRadius: '10px',
-                      fontWeight: 800,
-                      fontSize: '0.78rem',
-                      letterSpacing: '0.01em',
-                      color: getCountdownColor(admissionRemainingSec),
-                      backgroundColor: getCountdownBackground(admissionRemainingSec),
-                      border: `1px solid ${getCountdownBorder(admissionRemainingSec)}`,
-                    }}
-                  >
-                    Tu turno expira en {formatCountdownLabel(admissionRemainingSec)}
-                  </Box>
-                )}
                 {!admissionSessionId && rulesAccepted && (
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
                     Esperando turno para continuar al siguiente paso...
@@ -1683,7 +1720,7 @@ export function IcePage() {
                         <Warning className="warning-icon" sx={{ fontSize: '24px' }} />
                       </span>
                       <Typography style={{ color: '#1e293b', fontWeight: 500, fontSize: '0.92rem', lineHeight: 1.5, marginLeft: '10px' }}>
-                        Para completar el proceso, revisa tu correo electrónico y/o WhatsApp y <strong style={{ color: '#dc2626' }}>confirma tu reserva</strong> <strong>dentro de los próximos 5 minutos</strong>.
+                        Para completar el proceso, revisa tu correo electrónico y <strong style={{ color: '#dc2626' }}>confirma tu reserva</strong> <strong>dentro de los próximos 5 minutos</strong>.
                         <br /><br />
                         Si no confirmas en ese plazo, la solicitud se cancelará automáticamente.
                       </Typography>

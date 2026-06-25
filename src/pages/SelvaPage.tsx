@@ -17,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { api, socket } from '../services/api';
@@ -26,6 +26,7 @@ import { isValidDateKey, toChileDateKey, formatChileDateLabel, formatChileTime }
 import { hasRepetitiveSpam } from '../utils/name';
 import { getEmailSuggestion } from '../utils/email';
 import { enterAdmission, formatEtaLabel, getAdmissionStatus, leaveAdmission, submitAdmission } from '../utils/admission';
+import { isAllSoldOut } from '../utils/schedules';
 import fondoImage from '../assets/Fondo.jpg';
 import selvaWebHeader from '../assets/Selvaweb.png';
 import institutionalLogos from '../assets/logos.png';
@@ -183,28 +184,47 @@ export function SelvaPage() {
   const [admissionRemainingSec, setAdmissionRemainingSec] = useState<number | null>(null);
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
   const lastDuplicateRutAlertRef = useRef<string | null>(null);
+  const soldOutShownRef = useRef(false);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
+
+  const showSoldOutModal = useCallback(async () => {
+    if (soldOutShownRef.current) return;
+    soldOutShownRef.current = true;
+    await Swal.fire({
+      icon: 'warning',
+      title: 'Sin disponibilidad',
+      text: 'Todos los cupos para este evento están agotados. Vuelve a intentarlo más tarde.',
+      confirmButtonColor: '#0f766e',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+    });
+    navigate('/home');
+  }, [navigate]);
 
   // Real-time updates via WebSocket
   useEffect(() => {
     socket.connect();
     const onSpotsUpdated = (payload: { scheduleId: string; remaining: number }) => {
-      setSchedules((prev) =>
-        prev.map((schedule) =>
+      setSchedules((prev) => {
+        const next = prev.map((schedule) =>
           schedule._id === payload.scheduleId
             ? { ...schedule, availableSpots: payload.remaining }
             : schedule,
-        ),
-      );
+        );
+        if (isAllSoldOut(next)) {
+          void showSoldOutModal();
+        }
+        return next;
+      });
     };
     socket.on('spots_updated', onSpotsUpdated);
     return () => {
       socket.off('spots_updated', onSpotsUpdated);
       socket.disconnect();
     };
-  }, []);
+  }, [showSoldOutModal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -491,6 +511,9 @@ export function SelvaPage() {
         setLoadingSchedules(true);
         const { data } = await api.get<Schedule[]>('/schedules?eventType=selva');
         setSchedules(data);
+        if (isAllSoldOut(data)) {
+          void showSoldOutModal();
+        }
       } catch {
         void Swal.fire({
           icon: 'error',
@@ -503,7 +526,7 @@ export function SelvaPage() {
       }
     };
     fetchSchedules();
-  }, []);
+  }, [showSoldOutModal]);
 
   // Dependents validations
   const activeDependents = useMemo(() => {
