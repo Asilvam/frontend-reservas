@@ -9,11 +9,30 @@ import superiorAlcaldia from '../assets/superioralcaldia.png';
 import '../styles/home-page.css';
 import '../styles/maintenance-page.css';
 
-const RETRY_DELAY_SECONDS = 20;
+const RETRY_DELAY_SEQUENCE_SECONDS = [10, 30, 60, 90, 120];
+const RETRY_DELAY_INDEX_KEY = 'iceMaintenanceRetryDelayIndex';
+
+function getRetryDelayIndex() {
+  const savedIndex = Number(window.sessionStorage.getItem(RETRY_DELAY_INDEX_KEY) ?? 0);
+  if (!Number.isFinite(savedIndex) || savedIndex < 0) return 0;
+  return Math.min(savedIndex, RETRY_DELAY_SEQUENCE_SECONDS.length - 1);
+}
+
+function advanceRetryDelayIndex(currentIndex: number) {
+  const nextIndex = Math.min(currentIndex + 1, RETRY_DELAY_SEQUENCE_SECONDS.length - 1);
+  window.sessionStorage.setItem(RETRY_DELAY_INDEX_KEY, String(nextIndex));
+}
 
 export function MaintenancePage() {
   const navigate = useNavigate();
-  const [remainingSeconds, setRemainingSeconds] = useState(RETRY_DELAY_SECONDS);
+  const [retryDelayIndex] = useState(getRetryDelayIndex);
+  const [remainingSeconds, setRemainingSeconds] = useState(
+    RETRY_DELAY_SEQUENCE_SECONDS[retryDelayIndex],
+  );
+
+  useEffect(() => {
+    advanceRetryDelayIndex(retryDelayIndex);
+  }, [retryDelayIndex]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -62,7 +81,10 @@ export function MaintenancePage() {
           <Button
             variant="text"
             className="maintenance-react-home-button"
-            onClick={() => navigate('/home', { replace: true })}
+            onClick={() => {
+              window.sessionStorage.removeItem(RETRY_DELAY_INDEX_KEY);
+              navigate('/home', { replace: true });
+            }}
           >
             Ir al inicio
           </Button>

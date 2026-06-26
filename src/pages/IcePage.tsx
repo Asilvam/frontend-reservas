@@ -49,6 +49,7 @@ const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
 const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
 const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
 const EVENT_TYPE = 'patines';
+const MAINTENANCE_RETRY_DELAY_INDEX_KEY = 'iceMaintenanceRetryDelayIndex';
 
 function redirectToMaintenancePage() {
   window.location.assign('/maintenance');
@@ -221,6 +222,7 @@ export function IcePage() {
         if (cancelled) return;
 
         if (enterResponse.admitted) {
+          window.sessionStorage.removeItem(MAINTENANCE_RETRY_DELAY_INDEX_KEY);
           setAdmissionSessionId(enterResponse.sessionId);
           const remainingSec = Math.max(
             0,
