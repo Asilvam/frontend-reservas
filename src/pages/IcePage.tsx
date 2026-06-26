@@ -50,6 +50,10 @@ const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
 const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
 const EVENT_TYPE = 'patines';
 
+function redirectToMaintenancePage() {
+  window.location.assign('/maintenance.html');
+}
+
 function normalizeRut(rawRut: string) {
   return rawRut.replace(/-/g, '').trim().toUpperCase();
 }
@@ -285,13 +289,7 @@ export function IcePage() {
         if (cancelled) return;
         const waitlistFullError = error as { code?: string; message?: string };
         if (waitlistFullError?.code === 'WAITLIST_FULL') {
-          await Swal.fire({
-            icon: 'warning',
-              title: 'Fila de espera completa',
-              text: waitlistFullError.message || 'La fila de espera está completa. Inténtalo nuevamente.',
-            confirmButtonColor: '#0f766e',
-          });
-          navigate('/home');
+          redirectToMaintenancePage();
           return;
         }
         void Swal.fire({
