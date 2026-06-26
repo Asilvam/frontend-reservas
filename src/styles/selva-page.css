@@ -367,17 +367,22 @@
 }
 
 .selva-wizard-dependent-row {
-  display: flex;
-  gap: 0.6rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 0.75rem;
   align-items: flex-start;
   margin-bottom: 0.6rem;
 }
 
 .selva-wizard-dependent-fields {
-  flex: 1;
   display: grid;
-  grid-template-columns: 2fr 2fr 1.2fr;
-  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 150px);
+  gap: 0.75rem;
+}
+
+.selva-wizard-dependent-row .MuiIconButton-root {
+  justify-self: center;
+  margin-top: 0.45rem;
 }
 
 .selva-wizard-divider {
@@ -612,6 +617,16 @@
     gap: 0.6rem;
   }
 
+  .selva-wizard-dependent-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .selva-wizard-dependent-row .MuiIconButton-root {
+    justify-self: center;
+    margin-top: -0.1rem;
+  }
+
   .selva-summary-grid {
     grid-template-columns: 1fr;
     gap: 0.45rem;
@@ -812,4 +827,3 @@
     gap: 0.75rem;
   }
 }
-

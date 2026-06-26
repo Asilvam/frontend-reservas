@@ -495,7 +495,6 @@ export function IcePage() {
       try {
         setLoadingSchedules(true);
         const { data } = await api.get<Schedule[]>('/schedules?eventType=patines');
-        console.log('[IcePage] Schedules:', data);
         setSchedules(data);
         if (isAllSoldOut(data)) {
           void showSoldOutModal();
@@ -1054,7 +1053,7 @@ export function IcePage() {
               {isAccompanied && (
                 <Box className="selva-wizard-dependents">
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f766e', mb: 1 }}>
-                    Registrar Acompañantes (Edades permitidas: 5 a 100 años)
+                    Registrar Acompañantes
                   </Typography>
 
                   <Stack spacing={2.5}>
