@@ -42,37 +42,7 @@ type DependentFormItem = {
   age: string;
 };
 
-const DEFAULT_DEPENDENT_NAMES = [
-  'Tulio Triviño',
-  'Juan Carlos Bodoque',
-  'Juanín Juan Harry',
-  'Patana Tufillo',
-  'Calcetín con Rombos Man',
-  'Policarpo Avendaño',
-  'Mario Hugo',
-  'Huachimingo',
-  'Guaripolo',
-  'Bongo Stingo',
-  'Cindy',
-  'Lala',
-  'Lolo',
-  'Mico el Micófono',
-  'Diente Blanco',
-  'Tío Horacio',
-  'César Quintanilla',
-  'Simi',
-  'Charango',
-  'Sonia',
-];
-
-function createDefaultDependent(existingDependents: DependentFormItem[] = []): DependentFormItem {
-  const usedNames = new Set(existingDependents.map((dependent) => dependent.name.trim()).filter(Boolean));
-  const name =
-    DEFAULT_DEPENDENT_NAMES.find((defaultName) => !usedNames.has(defaultName)) ??
-    DEFAULT_DEPENDENT_NAMES[existingDependents.length % DEFAULT_DEPENDENT_NAMES.length];
-
-  return { name, age: '' };
-}
+const EMPTY_DEPENDENT: DependentFormItem = { name: '', age: '' };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
@@ -161,7 +131,7 @@ export function IcePage() {
   const [villa, setVilla] = useState('');
   
   const [isAccompanied, setIsAccompanied] = useState(false);
-  const [dependents, setDependents] = useState<DependentFormItem[]>([createDefaultDependent()]);
+  const [dependents, setDependents] = useState<DependentFormItem[]>([{ ...EMPTY_DEPENDENT }]);
   const [acceptMarketing, setAcceptMarketing] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [loadedRut, setLoadedRut] = useState('');
@@ -178,7 +148,7 @@ export function IcePage() {
     setAddress('');
     setCommune('');
     setVilla('');
-    setDependents([createDefaultDependent()]);
+    setDependents([{ ...EMPTY_DEPENDENT }]);
     setIsAccompanied(false);
   };
 
@@ -657,7 +627,7 @@ export function IcePage() {
 
   const handleAddDependent = () => {
     if (dependents.length < MAX_DEPENDENTS) {
-      setDependents((prev) => [...prev, createDefaultDependent(prev)]);
+      setDependents((prev) => [...prev, { ...EMPTY_DEPENDENT }]);
     }
   };
 
@@ -856,7 +826,7 @@ export function IcePage() {
       setCommune('');
       setVilla('');
       setIsAccompanied(false);
-      setDependents([createDefaultDependent()]);
+      setDependents([{ ...EMPTY_DEPENDENT }]);
       setSelectedScheduleId('');
       setAcceptMarketing(false);
       setStep(4);
@@ -1068,7 +1038,7 @@ export function IcePage() {
                       const checked = e.target.checked;
                       setIsAccompanied(checked);
                       if (!checked) {
-                        setDependents([createDefaultDependent()]);
+                        setDependents([{ ...EMPTY_DEPENDENT }]);
                       }
                     }}
                     className="selva-custom-checkbox"
