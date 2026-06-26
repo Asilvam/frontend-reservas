@@ -17,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { api, socket } from '../services/api';
@@ -25,6 +25,8 @@ import type { CreateGuardianPayload, Schedule, Guardian } from '../types';
 import { isValidDateKey, toChileDateKey, formatChileDateLabel, formatChileTime } from '../utils/datetime';
 import { hasRepetitiveSpam } from '../utils/name';
 import { getEmailSuggestion } from '../utils/email';
+import { enterAdmission, formatEtaLabel, getAdmissionStatus, leaveAdmission, submitAdmission } from '../utils/admission';
+import { isAllSoldOut } from '../utils/schedules';
 import fondoImage from '../assets/Fondo.jpg';
 import selvaWebHeader from '../assets/Selvaweb.png';
 import institutionalLogos from '../assets/logos.png';
@@ -45,6 +47,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
 const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
 const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
+const EVENT_TYPE = 'selva';
 
 function normalizeRut(rawRut: string) {
   return rawRut.replace(/-/g, '').trim().toUpperCase();
@@ -101,6 +104,33 @@ function getDuplicateRut(values: string[]) {
   return null;
 }
 
+function formatCountdownLabel(totalSeconds: number) {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const minutes = Math.floor(safeSeconds / 60)
+    .toString()
+    .padStart(2, '0');
+  const seconds = (safeSeconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
+function getCountdownColor(totalSeconds: number) {
+  if (totalSeconds <= 10) return 'error.main';
+  if (totalSeconds <= 20) return 'warning.main';
+  return 'success.main';
+}
+
+function getCountdownBackground(totalSeconds: number) {
+  if (totalSeconds <= 10) return 'rgba(220, 38, 38, 0.12)';
+  if (totalSeconds <= 20) return 'rgba(217, 119, 6, 0.12)';
+  return 'rgba(5, 150, 105, 0.12)';
+}
+
+function getCountdownBorder(totalSeconds: number) {
+  if (totalSeconds <= 10) return 'rgba(220, 38, 38, 0.35)';
+  if (totalSeconds <= 20) return 'rgba(217, 119, 6, 0.35)';
+  return 'rgba(5, 150, 105, 0.35)';
+}
+
 export function SelvaPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -150,30 +180,210 @@ export function SelvaPage() {
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [validatingRuts, setValidatingRuts] = useState(false);
+  const [admissionSessionId, setAdmissionSessionId] = useState<string | null>(null);
+  const [admissionRemainingSec, setAdmissionRemainingSec] = useState<number | null>(null);
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
   const lastDuplicateRutAlertRef = useRef<string | null>(null);
+  const soldOutShownRef = useRef(false);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
+
+  const showSoldOutModal = useCallback(async () => {
+    if (soldOutShownRef.current) return;
+    soldOutShownRef.current = true;
+    await Swal.fire({
+      icon: 'warning',
+      title: 'Sin disponibilidad',
+      text: 'Todos los cupos para este evento están agotados. Vuelve a intentarlo más tarde.',
+      confirmButtonColor: '#0f766e',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+    });
+    navigate('/home');
+  }, [navigate]);
 
   // Real-time updates via WebSocket
   useEffect(() => {
     socket.connect();
     const onSpotsUpdated = (payload: { scheduleId: string; remaining: number }) => {
-      setSchedules((prev) =>
-        prev.map((schedule) =>
+      setSchedules((prev) => {
+        const next = prev.map((schedule) =>
           schedule._id === payload.scheduleId
             ? { ...schedule, availableSpots: payload.remaining }
             : schedule,
-        ),
-      );
+        );
+        if (isAllSoldOut(next)) {
+          void showSoldOutModal();
+        }
+        return next;
+      });
     };
     socket.on('spots_updated', onSpotsUpdated);
     return () => {
       socket.off('spots_updated', onSpotsUpdated);
       socket.disconnect();
     };
-  }, []);
+  }, [showSoldOutModal]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const ensureAdmission = async () => {
+      if (step !== 1 || !rulesAccepted || admissionSessionId) {
+        return;
+      }
+
+      try {
+        const enterResponse = await enterAdmission(EVENT_TYPE);
+        if (cancelled) return;
+
+        if (enterResponse.admitted) {
+          setAdmissionSessionId(enterResponse.sessionId);
+          const remainingSec = Math.max(
+            0,
+            Math.ceil((new Date(enterResponse.expiresAt).getTime() - Date.now()) / 1000),
+          );
+          setAdmissionRemainingSec(remainingSec);
+          return;
+        }
+
+        const modalPromise = Swal.fire({
+          icon: 'info',
+          title: 'Alta demanda',
+          html: `
+            <p style="margin-bottom:8px;">Estamos recibiendo muchas solicitudes.</p>
+            <p id="admission-wait-message" style="margin:0;color:#475569;">Calculando tiempo de espera...</p>
+          `,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+        });
+
+        let status = await getAdmissionStatus(EVENT_TYPE, enterResponse.sessionId);
+        while (!cancelled) {
+          if (status.status === 'WRITING') {
+            Swal.close();
+            await modalPromise;
+            setAdmissionSessionId(enterResponse.sessionId);
+            setAdmissionRemainingSec(status.remainingSec);
+            return;
+          }
+
+          if (status.status === 'EXPIRED') {
+            Swal.close();
+            await modalPromise;
+            await Swal.fire({
+              icon: 'warning',
+              title: 'Sesion expirada',
+              text: 'Vuelve a ingresar para intentarlo nuevamente.',
+              confirmButtonColor: '#0f766e',
+            });
+            navigate('/home');
+            return;
+          }
+
+          if (status.status === 'WAITING') {
+            const etaText = formatEtaLabel(status.etaSec);
+            Swal.update({
+              html: `
+                <p style="margin-bottom:8px;">Estamos recibiendo muchas solicitudes.</p>
+                <p id="admission-wait-message" style="margin:0;color:#475569;">Posición #${status.position}. Espera sugerida: ${etaText}.</p>
+                <p style="margin:8px 0 0;color:#64748b;font-size:0.9rem;">Personas completando formulario ahora: ${status.writersActive}</p>
+              `,
+            });
+            await new Promise((resolve) => setTimeout(resolve, status.retryAfterSec * 1000));
+            status = await getAdmissionStatus(EVENT_TYPE, enterResponse.sessionId);
+            continue;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          status = await getAdmissionStatus(EVENT_TYPE, enterResponse.sessionId);
+        }
+
+        Swal.close();
+        await modalPromise;
+      } catch (error) {
+        if (cancelled) return;
+        const waitlistFullError = error as { code?: string; message?: string };
+        if (waitlistFullError?.code === 'WAITLIST_FULL') {
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Sin disponibilidad',
+            text: waitlistFullError.message || 'Sitio sin disponibilidad, intenta más tarde.',
+            confirmButtonColor: '#0f766e',
+          });
+          navigate('/home');
+          return;
+        }
+        void Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No pudimos obtener un turno de ingreso. Recarga la pagina e intenta nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+      }
+    };
+
+    void ensureAdmission();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [admissionSessionId, rulesAccepted, step]);
+
+  useEffect(() => {
+    if (!admissionSessionId || step > 3) {
+      return;
+    }
+
+    let cancelled = false;
+    const intervalId = window.setInterval(async () => {
+      if (cancelled) return;
+      try {
+        const status = await getAdmissionStatus(EVENT_TYPE, admissionSessionId);
+        if (cancelled) return;
+        if (status.status === 'EXPIRED') {
+          cancelled = true;
+          window.clearInterval(intervalId);
+          setAdmissionRemainingSec(0);
+          setAdmissionSessionId(null);
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Sesion expirada',
+            text: 'Vuelve a ingresar para intentarlo nuevamente.',
+            confirmButtonColor: '#0f766e',
+          });
+          navigate('/home');
+          return;
+        }
+        if (status.status === 'WRITING') {
+          setAdmissionRemainingSec(status.remainingSec);
+        }
+      } catch {
+        // Silent retry on next tick
+      }
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [admissionSessionId, step]);
+
+  useEffect(() => {
+    return () => {
+      if (admissionSessionId) {
+        void leaveAdmission(EVENT_TYPE, admissionSessionId);
+      }
+    };
+  }, [admissionSessionId]);
+
+  useEffect(() => {
+    if (!admissionSessionId) {
+      setAdmissionRemainingSec(null);
+    }
+  }, [admissionSessionId]);
 
   // Alerta de normas obligatorias (Step 1)
   useEffect(() => {
@@ -301,6 +511,9 @@ export function SelvaPage() {
         setLoadingSchedules(true);
         const { data } = await api.get<Schedule[]>('/schedules?eventType=selva');
         setSchedules(data);
+        if (isAllSoldOut(data)) {
+          void showSoldOutModal();
+        }
       } catch {
         void Swal.fire({
           icon: 'error',
@@ -313,7 +526,7 @@ export function SelvaPage() {
       }
     };
     fetchSchedules();
-  }, []);
+  }, [showSoldOutModal]);
 
   // Dependents validations
   const activeDependents = useMemo(() => {
@@ -467,12 +680,23 @@ export function SelvaPage() {
 
     try {
       setValidatingRuts(true);
-      const cleanTutorRut = normalizeRut(rut);
-      const dependentRuts = activeDependents.map(d => normalizeRut(d.rut));
+      const cleanTutorRut = formatRut(rut).toUpperCase();
+      const dependentRuts = activeDependents.map((d) => formatRut(d.rut).toUpperCase());
       const trimmedEmail = email.trim();
       const normalizedPhone = `+569${phone.trim()}`;
-      const { data: tutorCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${cleanTutorRut}?eventType=selva`);
-      if (tutorCheck.registered) {
+
+      const { data: precheck } = await api.post<{
+        rutRegisteredByValue: Record<string, boolean>;
+        emailAvailable: boolean;
+        phoneAvailable: boolean;
+      }>('/reservations/precheck', {
+        eventType: EVENT_TYPE,
+        ruts: [cleanTutorRut, ...dependentRuts],
+        email: trimmedEmail,
+        phone: normalizedPhone,
+      });
+
+      if (precheck.rutRegisteredByValue[cleanTutorRut]) {
         void Swal.fire({
           icon: 'error',
           title: 'Límite de Reservas',
@@ -483,10 +707,8 @@ export function SelvaPage() {
         return;
       }
 
-      // Validar RUTs de acompañantes
       for (const depRut of dependentRuts) {
-        const { data: depCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${depRut}?eventType=selva`);
-        if (depCheck.registered) {
+        if (precheck.rutRegisteredByValue[depRut]) {
           void Swal.fire({
             icon: 'error',
             title: 'Límite de Reservas',
@@ -499,8 +721,7 @@ export function SelvaPage() {
       }
 
       if (trimmedEmail !== loadedEmail) {
-        const { data: emailCheck } = await api.get<{ available: boolean }>(`/guardians/check-email/${encodeURIComponent(trimmedEmail)}`);
-        if (!emailCheck.available) {
+        if (!precheck.emailAvailable) {
           void Swal.fire({
             icon: 'error',
             title: 'Datos en Uso',
@@ -513,8 +734,7 @@ export function SelvaPage() {
       }
 
       if (phone.trim() !== loadedPhone) {
-        const { data: phoneCheck } = await api.get<{ available: boolean }>(`/guardians/check-phone/${encodeURIComponent(normalizedPhone)}`);
-        if (!phoneCheck.available) {
+        if (!precheck.phoneAvailable) {
           void Swal.fire({
             icon: 'error',
             title: 'Datos en Uso',
@@ -524,6 +744,17 @@ export function SelvaPage() {
           setValidatingRuts(false);
           return;
         }
+      }
+
+      if (!admissionSessionId) {
+        setAdmissionRemainingSec(null);
+        void Swal.fire({
+          icon: 'warning',
+          title: 'Espera tu turno',
+          text: 'Aun no tienes cupo para continuar. Espera un momento e intenta nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+        return;
       }
 
       setStep(2);
@@ -546,6 +777,35 @@ export function SelvaPage() {
 
     try {
       setSubmitting(true);
+
+      if (!admissionSessionId) {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Sesion expirada',
+          text: 'Vuelve a ingresar para intentarlo nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+        navigate('/home');
+        return;
+      }
+
+      const submitResult = await submitAdmission(EVENT_TYPE, admissionSessionId);
+      if (!submitResult.success) {
+        setAdmissionSessionId(null);
+        setAdmissionRemainingSec(null);
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Sesion expirada',
+          text: 'Vuelve a ingresar para intentarlo nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+        navigate('/home');
+        return;
+      }
+
+      await leaveAdmission(EVENT_TYPE, admissionSessionId);
+      setAdmissionSessionId(null);
+      setAdmissionRemainingSec(null);
 
       // 1. Create guardian (sin dependientes asociados en su ficha)
       const guardianPayload: CreateGuardianPayload = {
@@ -681,6 +941,34 @@ export function SelvaPage() {
           )}
 
           {step <= 3 && <Divider className="selva-step-divider" />}
+
+          {step <= 3 && admissionSessionId && admissionRemainingSec !== null && (
+            <Box
+              sx={{
+                mt: 0.25,
+                mb: 1.2,
+                px: 1.2,
+                py: 0.45,
+                minHeight: '44px',
+                width: '100%',
+                maxWidth: '320px',
+                mx: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.78rem',
+                letterSpacing: '0.01em',
+                color: getCountdownColor(admissionRemainingSec),
+                backgroundColor: getCountdownBackground(admissionRemainingSec),
+                border: `1px solid ${getCountdownBorder(admissionRemainingSec)}`,
+              }}
+            >
+              Tu turno expira en {formatCountdownLabel(admissionRemainingSec)}
+            </Box>
+          )}
 
           {/* STEP 1: Formulario de datos */}
           {step === 1 && (
@@ -879,15 +1167,27 @@ export function SelvaPage() {
                 </Box>
               )}
 
-              <Box className="selva-wizard-actions">
+              <Box
+                className="selva-wizard-actions"
+                sx={{
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
+                  gap: 1,
+                }}
+              >
+                {!admissionSessionId && rulesAccepted && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                    Esperando turno para continuar al siguiente paso...
+                  </Typography>
+                )}
                 <Button
                   variant="contained"
-                  disabled={!isStep1Valid || validatingRuts}
+                  disabled={!isStep1Valid || validatingRuts || !admissionSessionId}
                   onClick={handleGoToStep2}
                   className="selva-wizard-next-btn"
                   endIcon={validatingRuts ? <CircularProgress size={20} color="inherit" /> : <ArrowForward />}
                 >
-                  {validatingRuts ? 'Validando...' : 'Siguiente'}
+                  {validatingRuts ? 'Validando...' : !admissionSessionId ? 'Esperando turno...' : 'Siguiente'}
                 </Button>
               </Box>
             </Stack>

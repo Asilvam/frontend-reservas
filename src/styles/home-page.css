@@ -44,7 +44,8 @@
   width: 100%;
   max-width: 980px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  justify-content: center;
+  grid-template-columns: minmax(320px, 560px);
   gap: 1.35rem;
 }
 

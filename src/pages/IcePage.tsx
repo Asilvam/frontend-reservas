@@ -17,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { api, socket } from '../services/api';
@@ -25,6 +25,8 @@ import type { CreateGuardianPayload, Schedule, Guardian } from '../types';
 import { isValidDateKey, toChileDateKey, formatChileDateLabel, formatChileTime } from '../utils/datetime';
 import { hasRepetitiveSpam } from '../utils/name';
 import { getEmailSuggestion } from '../utils/email';
+import { enterAdmission, formatEtaLabel, getAdmissionStatus, leaveAdmission, submitAdmission } from '../utils/admission';
+import { isAllSoldOut } from '../utils/schedules';
 import fondoImage from '../assets/Fondo.jpg';
 import iceWebHeader from '../assets/Hielo.png';
 import institutionalLogos from '../assets/logos.png';
@@ -32,23 +34,21 @@ import '../styles/selva-page.css';
 import '../styles/spot-selector.css';
 
 const MAX_DEPENDENTS = 3;
-const SHOE_SIZES = Array.from({ length: 47 - 25 + 1 }, (_, i) => 25 + i); // [25, 26, ..., 47]
 const MIN_DEPENDENT_AGE = 5;
-const MAX_DEPENDENT_AGE = 17;
+const MAX_DEPENDENT_AGE = 100;
 
 type DependentFormItem = {
   name: string;
-  rut: string;
   age: string;
-  shoeSize: string; // Talla de calzado para patines
 };
 
-const EMPTY_DEPENDENT: DependentFormItem = { name: '', rut: '', age: '', shoeSize: '' };
+const EMPTY_DEPENDENT: DependentFormItem = { name: '', age: '' };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
 const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
 const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
+const EVENT_TYPE = 'patines';
 
 function normalizeRut(rawRut: string) {
   return rawRut.replace(/-/g, '').trim().toUpperCase();
@@ -82,22 +82,31 @@ function isValidChileanRut(rut: string) {
   return dv === expectedDvStr;
 }
 
-function getDuplicateRut(values: string[]) {
-  const seen = new Set<string>();
+function formatCountdownLabel(totalSeconds: number) {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const minutes = Math.floor(safeSeconds / 60)
+    .toString()
+    .padStart(2, '0');
+  const seconds = (safeSeconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
 
-  for (const value of values) {
-    const trimmedValue = value.trim();
-    if (!trimmedValue) continue;
+function getCountdownColor(totalSeconds: number) {
+  if (totalSeconds <= 10) return 'error.main';
+  if (totalSeconds <= 20) return 'warning.main';
+  return 'success.main';
+}
 
-    const normalizedValue = normalizeRut(trimmedValue);
-    if (seen.has(normalizedValue)) {
-      return trimmedValue;
-    }
+function getCountdownBackground(totalSeconds: number) {
+  if (totalSeconds <= 10) return 'rgba(220, 38, 38, 0.12)';
+  if (totalSeconds <= 20) return 'rgba(217, 119, 6, 0.12)';
+  return 'rgba(5, 150, 105, 0.12)';
+}
 
-    seen.add(normalizedValue);
-  }
-
-  return null;
+function getCountdownBorder(totalSeconds: number) {
+  if (totalSeconds <= 10) return 'rgba(220, 38, 38, 0.35)';
+  if (totalSeconds <= 20) return 'rgba(217, 119, 6, 0.35)';
+  return 'rgba(5, 150, 105, 0.35)';
 }
 
 export function IcePage() {
@@ -121,14 +130,6 @@ export function IcePage() {
   const [commune, setCommune] = useState('');
   const [villa, setVilla] = useState('');
   
-  // Emergency Contact
-  const [emergencyName, setEmergencyName] = useState('');
-  const [emergencyPhone, setEmergencyPhone] = useState('');
-  
-  // Adult Skating choice
-  const [adultWantsToSkate, setAdultWantsToSkate] = useState<'si' | 'no' | ''>('');
-  const [adultShoeSize, setAdultShoeSize] = useState<string>('');
-
   const [isAccompanied, setIsAccompanied] = useState(false);
   const [dependents, setDependents] = useState<DependentFormItem[]>([{ ...EMPTY_DEPENDENT }]);
   const [acceptMarketing, setAcceptMarketing] = useState(false);
@@ -147,10 +148,6 @@ export function IcePage() {
     setAddress('');
     setCommune('');
     setVilla('');
-    setEmergencyName('');
-    setEmergencyPhone('');
-    setAdultWantsToSkate('');
-    setAdultShoeSize('');
     setDependents([{ ...EMPTY_DEPENDENT }]);
     setIsAccompanied(false);
   };
@@ -162,33 +159,209 @@ export function IcePage() {
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [validatingRuts, setValidatingRuts] = useState(false);
+  const [admissionSessionId, setAdmissionSessionId] = useState<string | null>(null);
+  const [admissionRemainingSec, setAdmissionRemainingSec] = useState<number | null>(null);
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
-  const hasShownNoParticipantsWarningRef = useRef(false);
-  const hasShownYoungDependentWarningRef = useRef(false);
-  const hasShownAdultNoWarningRef = useRef(false);
-  const lastDuplicateRutAlertRef = useRef<string | null>(null);
+  const soldOutShownRef = useRef(false);
 
   const preferredDateParam = searchParams.get('date') ?? '';
   const preferredDateKey = isValidDateKey(preferredDateParam) ? preferredDateParam : undefined;
+
+  const showSoldOutModal = useCallback(async () => {
+    if (soldOutShownRef.current) return;
+    soldOutShownRef.current = true;
+    await Swal.fire({
+      icon: 'warning',
+      title: 'Sin disponibilidad',
+      text: 'Todos los cupos para este evento están agotados. Vuelve a intentarlo más tarde.',
+      confirmButtonColor: '#0f766e',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+    });
+    navigate('/home');
+  }, [navigate]);
 
   // Real-time updates via WebSocket
   useEffect(() => {
     socket.connect();
     const onSpotsUpdated = (payload: { scheduleId: string; remaining: number }) => {
-      setSchedules((prev) =>
-        prev.map((schedule) =>
+      setSchedules((prev) => {
+        const next = prev.map((schedule) =>
           schedule._id === payload.scheduleId
             ? { ...schedule, availableSpots: payload.remaining }
             : schedule,
-        ),
-      );
+        );
+        if (isAllSoldOut(next)) {
+          void showSoldOutModal();
+        }
+        return next;
+      });
     };
     socket.on('spots_updated', onSpotsUpdated);
     return () => {
       socket.off('spots_updated', onSpotsUpdated);
       socket.disconnect();
     };
-  }, []);
+  }, [showSoldOutModal]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const ensureAdmission = async () => {
+      if (step !== 1 || !rulesAccepted || admissionSessionId) {
+        return;
+      }
+
+      try {
+        const enterResponse = await enterAdmission(EVENT_TYPE);
+        if (cancelled) return;
+
+        if (enterResponse.admitted) {
+          setAdmissionSessionId(enterResponse.sessionId);
+          const remainingSec = Math.max(
+            0,
+            Math.ceil((new Date(enterResponse.expiresAt).getTime() - Date.now()) / 1000),
+          );
+          setAdmissionRemainingSec(remainingSec);
+          return;
+        }
+
+        const modalPromise = Swal.fire({
+          icon: 'info',
+          title: 'Alta demanda',
+          html: `
+            <p style="margin-bottom:8px;">Estamos recibiendo muchas solicitudes.</p>
+            <p id="admission-wait-message" style="margin:0;color:#475569;">Calculando tiempo de espera...</p>
+          `,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+        });
+
+        let status = await getAdmissionStatus(EVENT_TYPE, enterResponse.sessionId);
+        while (!cancelled) {
+          if (status.status === 'WRITING') {
+            Swal.close();
+            await modalPromise;
+            setAdmissionSessionId(enterResponse.sessionId);
+            setAdmissionRemainingSec(status.remainingSec);
+            return;
+          }
+
+          if (status.status === 'EXPIRED') {
+            Swal.close();
+            await modalPromise;
+            await Swal.fire({
+              icon: 'warning',
+              title: 'Tiempo de espera agotado',
+              text: 'Vuelve a ingresar para intentarlo nuevamente.\n.',
+              confirmButtonColor: '#0f766e',
+            });
+            navigate('/home');
+            return;
+          }
+
+          if (status.status === 'WAITING') {
+            const etaText = formatEtaLabel(status.etaSec);
+            Swal.update({
+              html: `
+                <p style="margin-bottom:8px;">Estamos recibiendo muchas solicitudes.</p>
+                <p id="admission-wait-message" style="margin:0;color:#475569;">Posición #${status.position}. Espera sugerida: ${etaText}.</p>
+                <p style="margin:8px 0 0;color:#64748b;font-size:0.9rem;">Personas completando formulario ahora: ${status.writersActive}</p>
+              `,
+            });
+            await new Promise((resolve) => setTimeout(resolve, status.retryAfterSec * 1000));
+            status = await getAdmissionStatus(EVENT_TYPE, enterResponse.sessionId);
+            continue;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          status = await getAdmissionStatus(EVENT_TYPE, enterResponse.sessionId);
+        }
+
+        Swal.close();
+        await modalPromise;
+      } catch (error) {
+        if (cancelled) return;
+        const waitlistFullError = error as { code?: string; message?: string };
+        if (waitlistFullError?.code === 'WAITLIST_FULL') {
+          await Swal.fire({
+            icon: 'warning',
+              title: 'Fila de espera completa',
+              text: waitlistFullError.message || 'La fila de espera está completa. Inténtalo nuevamente.',
+            confirmButtonColor: '#0f766e',
+          });
+          navigate('/home');
+          return;
+        }
+        void Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No pudimos obtener un turno de ingreso. Recarga la pagina e intenta nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+      }
+    };
+
+    void ensureAdmission();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [admissionSessionId, rulesAccepted, step]);
+
+  useEffect(() => {
+    if (!admissionSessionId || step > 3) {
+      return;
+    }
+
+    let cancelled = false;
+    const intervalId = window.setInterval(async () => {
+      if (cancelled) return;
+      try {
+        const status = await getAdmissionStatus(EVENT_TYPE, admissionSessionId);
+        if (cancelled) return;
+        if (status.status === 'EXPIRED') {
+          cancelled = true;
+          window.clearInterval(intervalId);
+          setAdmissionRemainingSec(0);
+          setAdmissionSessionId(null);
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Sesion expirada',
+            text: 'Vuelve a ingresar para intentarlo nuevamente.',
+            confirmButtonColor: '#0f766e',
+          });
+          navigate('/home');
+          return;
+        }
+        if (status.status === 'WRITING') {
+          setAdmissionRemainingSec(status.remainingSec);
+        }
+      } catch {
+        // Silent retry on next tick
+      }
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [admissionSessionId, step]);
+
+  useEffect(() => {
+    return () => {
+      if (admissionSessionId) {
+        void leaveAdmission(EVENT_TYPE, admissionSessionId);
+      }
+    };
+  }, [admissionSessionId]);
+
+  useEffect(() => {
+    if (!admissionSessionId) {
+      setAdmissionRemainingSec(null);
+    }
+  }, [admissionSessionId]);
 
   useEffect(() => {
     const updateCurrentTimestamp = () => {
@@ -294,15 +467,10 @@ export function IcePage() {
             if (data.address) setAddress(data.address);
             if (data.commune) setCommune(data.commune);
             if (data.villa) setVilla(data.villa);
-            if (data.emergencyName) setEmergencyName(data.emergencyName);
-            if (data.emergencyPhone) setEmergencyPhone(data.emergencyPhone.replace(/^\+56\s?9/, '').replace(/^56\s?9/, ''));
-            
             if (data.dependents && data.dependents.length > 0) {
               const mappedDependents = data.dependents.map(dep => ({
                 name: dep.name,
-                rut: formatRut(dep.rut),
                 age: String(dep.age ?? ''),
-                shoeSize: ''
               }));
               setDependents(mappedDependents);
               setIsAccompanied(true);
@@ -329,6 +497,9 @@ export function IcePage() {
         const { data } = await api.get<Schedule[]>('/schedules?eventType=patines');
         console.log('[IcePage] Schedules:', data);
         setSchedules(data);
+        if (isAllSoldOut(data)) {
+          void showSoldOutModal();
+        }
       } catch {
           void Swal.fire({
             icon: 'error',
@@ -341,12 +512,12 @@ export function IcePage() {
       }
     };
     fetchSchedules();
-  }, []);
+  }, [showSoldOutModal]);
 
   // Dependents validations
   const activeDependents = useMemo(() => {
     if (!isAccompanied) return [];
-    return dependents.filter((dep) => dep.name.trim().length > 0 || dep.rut.trim().length > 0 || dep.age.trim().length > 0 || dep.shoeSize.trim().length > 0);
+    return dependents.filter((dep) => dep.name.trim().length > 0 || dep.age.trim().length > 0);
   }, [dependents, isAccompanied]);
 
   const areDependentsValid = useMemo(() => {
@@ -357,96 +528,12 @@ export function IcePage() {
         dep.name.trim().length >= 2 &&
         NAME_REGEX.test(dep.name.trim()) &&
         !hasRepetitiveSpam(dep.name.trim()) &&
-        isValidChileanRut(dep.rut) &&
         dep.age.trim().length > 0 &&
         !isNaN(Number(dep.age)) &&
         Number(dep.age) >= MIN_DEPENDENT_AGE &&
-        Number(dep.age) <= MAX_DEPENDENT_AGE &&
-        dep.shoeSize.trim().length > 0 &&
-        !isNaN(Number(dep.shoeSize)) &&
-        Number(dep.shoeSize) >= 25 &&
-        Number(dep.shoeSize) <= 47,
+        Number(dep.age) <= MAX_DEPENDENT_AGE,
     );
   }, [activeDependents, isAccompanied]);
-
-  const hasYoungDependentRequiringAdult = useMemo(() => {
-    return activeDependents.some((dep) => {
-      const age = Number(dep.age);
-      return !isNaN(age) && age >= MIN_DEPENDENT_AGE && age <= 7;
-    });
-  }, [activeDependents]);
-
-  const duplicateRutInForm = useMemo(() => {
-    return getDuplicateRut([rut, ...activeDependents.map((dep) => dep.rut)]);
-  }, [rut, activeDependents]);
-
-  useEffect(() => {
-    if (step !== 1 || adultWantsToSkate !== 'no' || activeDependents.length > 0) {
-      hasShownNoParticipantsWarningRef.current = false;
-      return;
-    }
-
-    if (hasShownNoParticipantsWarningRef.current) return;
-
-    hasShownNoParticipantsWarningRef.current = true;
-    void Swal.fire({
-      icon: 'warning',
-      title: 'Participantes requeridos',
-      text: 'Debe existir al menos un participante en la reserva.',
-      confirmButtonColor: '#0f766e',
-    });
-  }, [activeDependents.length, adultWantsToSkate, step]);
-
-  useEffect(() => {
-    if (step !== 1 || adultWantsToSkate !== 'no' || !hasYoungDependentRequiringAdult) {
-      hasShownYoungDependentWarningRef.current = false;
-      return;
-    }
-
-    if (hasShownYoungDependentWarningRef.current) return;
-
-    hasShownYoungDependentWarningRef.current = true;
-    void Swal.fire({
-      icon: 'warning',
-      title: 'Acompañamiento obligatorio',
-      text: 'Si inscribes menores entre 5 y 7 años, el adulto también debe patinar.',
-      confirmButtonColor: '#0f766e',
-    });
-  }, [adultWantsToSkate, hasYoungDependentRequiringAdult, step]);
-
-  useEffect(() => {
-    if (step !== 1 || adultWantsToSkate !== 'no') {
-      hasShownAdultNoWarningRef.current = false;
-      return;
-    }
-
-    if (hasShownAdultNoWarningRef.current) return;
-
-    hasShownAdultNoWarningRef.current = true;
-    void Swal.fire({
-      icon: 'warning',
-      title: 'Participación del adulto',
-      text: 'Solo se contabilizarán los menores inscritos como participantes.',
-      confirmButtonColor: '#0f766e',
-    });
-  }, [adultWantsToSkate, step]);
-
-  useEffect(() => {
-    if (step !== 1 || !duplicateRutInForm) {
-      lastDuplicateRutAlertRef.current = null;
-      return;
-    }
-
-    if (lastDuplicateRutAlertRef.current === duplicateRutInForm) return;
-
-    lastDuplicateRutAlertRef.current = duplicateRutInForm;
-    void Swal.fire({
-      icon: 'error',
-      title: 'Límite de Reservas',
-      text: `El RUT ${duplicateRutInForm} está repetido en esta inscripción. Te recordamos que cada persona puede participar solo una vez por evento.`,
-      confirmButtonColor: '#0f766e',
-    });
-  }, [duplicateRutInForm, step]);
 
   // General step 1 validation
   const isGuardianNameValid = useMemo(() => {
@@ -460,7 +547,6 @@ export function IcePage() {
   const isGuardianRutValid = isValidChileanRut(rut);
   const isGuardianEmailValid = EMAIL_REGEX.test(email.trim());
   const isGuardianPhoneValid = CHILEAN_MOBILE_REGEX.test(phone.trim());
-  const isEmergencyPhoneValid = CHILEAN_MOBILE_REGEX.test(emergencyPhone.trim());
 
   const emailSuggestion = useMemo(() => {
     return getEmailSuggestion(email);
@@ -473,27 +559,9 @@ export function IcePage() {
     if (!isGuardianPhoneValid) return false;
     if (address.trim().length < 2) return false;
     if (commune.trim().length < 2) return false;
-    
-    // Emergency Contact
-    if (emergencyName.trim().length < 2) return false;
-    if (!isEmergencyPhoneValid) return false;
-    
-    // Adult skating choice validation
-    if (adultWantsToSkate === '') return false;
-    if (adultWantsToSkate === 'si') {
-      const sizeStr = String(adultShoeSize).trim();
-      if (sizeStr.length === 0 || isNaN(Number(sizeStr)) || Number(sizeStr) < 25 || Number(sizeStr) > 47) {
-        return false;
-      }
-    }
-
-    if (adultWantsToSkate === 'no' && activeDependents.length === 0) return false;
-    if (hasYoungDependentRequiringAdult && adultWantsToSkate !== 'si') return false;
     if (!areDependentsValid) return false;
-    if (duplicateRutInForm) return false;
     return true;
   }, [
-    activeDependents.length,
     areDependentsValid, 
     isGuardianEmailValid, 
     isGuardianPhoneValid, 
@@ -501,16 +569,9 @@ export function IcePage() {
     isGuardianNameValid, 
     address, 
     commune, 
-    emergencyName, 
-    isEmergencyPhoneValid, 
-    adultWantsToSkate, 
-    adultShoeSize,
-    hasYoungDependentRequiringAdult,
-    duplicateRutInForm,
   ]);
 
-  // Total attendees including guardian only if they choose to skate
-  const totalAttendees = (adultWantsToSkate === 'si' ? 1 : 0) + activeDependents.length;
+  const totalAttendees = 1 + activeDependents.length;
 
   // Date lists for selector (Step 2)
   const availableDateKeys = useMemo(() => {
@@ -559,8 +620,6 @@ export function IcePage() {
       sanitizedValue = stringValue.replace(/\d/g, '');
     } else if (field === 'age') {
       sanitizedValue = stringValue.replace(/\D/g, '');
-    } else if (field === 'shoeSize') {
-      sanitizedValue = stringValue.replace(/\D/g, '');
     }
     setDependents((prev) =>
       prev.map((dep, i) => (i === index ? { ...dep, [field]: sanitizedValue } : dep)),
@@ -578,50 +637,29 @@ export function IcePage() {
   };
 
   const handleGoToStep2 = async () => {
-    console.log('[IcePage] Click en handleGoToStep2');
-    console.log('[IcePage] isStep1Valid:', isStep1Valid);
-    console.log('[IcePage] Datos:', {
-      rut,
-      name,
-      email,
-      phone,
-      isAccompanied,
-      dependents,
-      isGuardianNameValid,
-      isGuardianRutValid,
-      isGuardianEmailValid,
-      isGuardianPhoneValid,
-      areDependentsValid
-    });
-
     if (!isStep1Valid) {
       console.warn('[IcePage] Cancelado: el paso 1 no es válido.');
       return;
     }
 
-    if (duplicateRutInForm) {
-      void Swal.fire({
-        icon: 'error',
-        title: 'Límite de Reservas',
-        text: `El RUT ${duplicateRutInForm} está repetido en esta inscripción. Te recordamos que cada persona puede participar solo una vez por evento.`,
-        confirmButtonColor: '#0f766e',
-      });
-      return;
-    }
-
     try {
-      console.log('[IcePage] Validating RUTs for tutor and dependents before proceeding to schedule selection...');
       setValidatingRuts(true);
-      const cleanTutorRut = normalizeRut(rut);
-      const dependentRuts = activeDependents.map(d => normalizeRut(d.rut));
+      const cleanTutorRut = formatRut(rut).toUpperCase();
       const trimmedEmail = email.trim();
       const normalizedPhone = `+569${phone.trim()}`;
-      console.log('[IcePage] RUTs a validar:', { cleanTutorRut, dependentRuts });
-      
-      // Validar RUT del tutor
-      const { data: tutorCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${cleanTutorRut}?eventType=patines`);
-      console.log('[IcePage] Resultado tutor:', tutorCheck);
-      if (tutorCheck.registered) {
+
+      const { data: precheck } = await api.post<{
+        rutRegisteredByValue: Record<string, boolean>;
+        emailAvailable: boolean;
+        phoneAvailable: boolean;
+      }>('/reservations/precheck', {
+        eventType: EVENT_TYPE,
+        ruts: [cleanTutorRut],
+        email: trimmedEmail,
+        phone: normalizedPhone,
+      });
+
+      if (precheck.rutRegisteredByValue[cleanTutorRut]) {
         void Swal.fire({
           icon: 'error',
           title: 'Límite de Reservas',
@@ -632,24 +670,8 @@ export function IcePage() {
         return;
       }
 
-      // Validar RUTs de acompañantes
-      for (const depRut of dependentRuts) {
-        const { data: depCheck } = await api.get<{ registered: boolean }>(`/reservations/check-rut/${depRut}?eventType=patines`);
-        if (depCheck.registered) {
-          void Swal.fire({
-            icon: 'error',
-            title: 'Límite de Reservas',
-            text: `El acompañante con RUT ${depRut} ya cuenta con una reserva activa o concluida para esta actividad (como tutor o acompañante). Te recordamos que cada persona puede participar solo una vez por evento.`,
-            confirmButtonColor: '#0f766e',
-          });
-          setValidatingRuts(false);
-          return;
-        }
-      }
-
       if (trimmedEmail !== loadedEmail) {
-        const { data: emailCheck } = await api.get<{ available: boolean }>(`/guardians/check-email/${encodeURIComponent(trimmedEmail)}`);
-        if (!emailCheck.available) {
+        if (!precheck.emailAvailable) {
           void Swal.fire({
             icon: 'error',
             title: 'Datos en Uso',
@@ -662,8 +684,7 @@ export function IcePage() {
       }
 
       if (phone.trim() !== loadedPhone) {
-        const { data: phoneCheck } = await api.get<{ available: boolean }>(`/guardians/check-phone/${encodeURIComponent(normalizedPhone)}`);
-        if (!phoneCheck.available) {
+        if (!precheck.phoneAvailable) {
           void Swal.fire({
             icon: 'error',
             title: 'Datos en Uso',
@@ -675,13 +696,24 @@ export function IcePage() {
         }
       }
 
+      if (!admissionSessionId) {
+        setAdmissionRemainingSec(null);
+        void Swal.fire({
+          icon: 'warning',
+          title: 'Espera tu turno',
+          text: 'Aun no tienes cupo para continuar. Espera un momento e intenta nuevamente.',
+          confirmButtonColor: '#0f766e',
+        });
+        return;
+      }
+
       setStep(2);
     } catch (error) {
       console.error('Error validating RUTs:', error);
       void Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'Hubo un problema al validar los RUTs de la reserva. Por favor, inténtelo de nuevo.',
+        text: 'Hubo un problema. Por favor, inténtelo de nuevo.',
         confirmButtonColor: '#0f766e',
       });
     } finally {
@@ -696,6 +728,35 @@ export function IcePage() {
     try {
       setSubmitting(true);
 
+      if (!admissionSessionId) {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Tiempo agotado',
+          text: 'Tu turno en el formulario expiró 💣. Debes volver a ingresar.',
+          confirmButtonColor: '#0f766e',
+        });
+        navigate('/home');
+        return;
+      }
+
+      const submitResult = await submitAdmission(EVENT_TYPE, admissionSessionId);
+      if (!submitResult.success) {
+        setAdmissionSessionId(null);
+        setAdmissionRemainingSec(null);
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Tiempo agotado',
+          text: 'Tu turno en el formulario expiró 💣. Debes volver a ingresar.',
+          confirmButtonColor: '#0f766e',
+        });
+        navigate('/home');
+        return;
+      }
+
+      await leaveAdmission(EVENT_TYPE, admissionSessionId);
+      setAdmissionSessionId(null);
+      setAdmissionRemainingSec(null);
+
       // 1. Create guardian (sin dependientes en su ficha)
       const guardianPayload: CreateGuardianPayload = {
         name: name.trim(),
@@ -705,40 +766,20 @@ export function IcePage() {
         address: address.trim(),
         commune: commune.trim(),
         villa: villa.trim() || undefined,
-        emergencyName: emergencyName.trim(),
-        emergencyPhone: `+569${emergencyPhone.trim()}`,
         acceptMarketing,
       };
 
       const { data: createdGuardian } = await api.post<Guardian>('/guardians', guardianPayload);
 
-      // 2. Map skating shoe sizes for metadata (including guardian if they skate)
-      const patinesMetadata = activeDependents.map((dep) => ({
-        rut: dep.rut.trim(),
-        shoeSize: Number(dep.shoeSize),
-      }));
-
-      if (adultWantsToSkate === 'si') {
-        patinesMetadata.push({
-          rut: rut.trim(),
-          shoeSize: Number(adultShoeSize),
-        });
-      }
-
-      // 3. Create reservation immediately (guardando aquí los dependientes con edad)
+      // 2. Create reservation immediately (guardando aquí los dependientes con edad)
       const reservationPayload = {
         scheduleId: selectedSchedule._id,
         guardianId: createdGuardian._id,
-        guardianParticipates: adultWantsToSkate === 'si',
+        guardianParticipates: true,
         attendingDependents: activeDependents.map((dep) => ({
           name: dep.name.trim(),
-          rut: dep.rut.trim(),
           age: Number(dep.age),
         })),
-        metadata: {
-          eventType: 'patines',
-          patines: patinesMetadata,
-        },
       };
 
       await api.post('/reservations', reservationPayload);
@@ -785,10 +826,6 @@ export function IcePage() {
       setAddress('');
       setCommune('');
       setVilla('');
-      setEmergencyName('');
-      setEmergencyPhone('');
-      setAdultWantsToSkate('');
-      setAdultShoeSize('');
       setIsAccompanied(false);
       setDependents([{ ...EMPTY_DEPENDENT }]);
       setSelectedScheduleId('');
@@ -843,6 +880,34 @@ export function IcePage() {
           )}
 
           {step <= 3 && <Divider className="selva-step-divider" />}
+
+          {step <= 3 && admissionSessionId && admissionRemainingSec !== null && (
+            <Box
+              sx={{
+                mt: 0.25,
+                mb: 1.2,
+                px: 1.2,
+                py: 0.45,
+                minHeight: '44px',
+                width: '100%',
+                maxWidth: '320px',
+                mx: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.78rem',
+                letterSpacing: '0.01em',
+                color: getCountdownColor(admissionRemainingSec),
+                backgroundColor: getCountdownBackground(admissionRemainingSec),
+                border: `1px solid ${getCountdownBorder(admissionRemainingSec)}`,
+              }}
+            >
+              Tu turno expira en {formatCountdownLabel(admissionRemainingSec)}
+            </Box>
+          )}
 
           {/* STEP 1: Formulario de datos */}
           {step === 1 && (
@@ -963,72 +1028,6 @@ export function IcePage() {
                 fullWidth
               />
 
-              <Divider sx={{ my: 1 }}>Contacto de Emergencia</Divider>
-
-              <TextField
-                label="Nombre Contacto de Emergencia"
-                value={emergencyName}
-                onChange={(event) => setEmergencyName(event.target.value.replace(/\d/g, ''))}
-                required
-                fullWidth
-              />
-
-              <TextField
-                label="Teléfono de Emergencia"
-                value={emergencyPhone}
-                onChange={(event) => setEmergencyPhone(event.target.value.replace(/\D/g, ''))}
-                slotProps={{
-                  input: {
-                    startAdornment: <InputAdornment position="start">+56 9</InputAdornment>,
-                  },
-                  htmlInput: {
-                    maxLength: 8,
-                    inputMode: 'numeric',
-                  },
-                }}
-                error={emergencyPhone.trim().length > 0 && !isEmergencyPhoneValid}
-                helperText={emergencyPhone.trim().length > 0 && !isEmergencyPhoneValid ? 'Deben ser 8 dígitos.' : ''}
-                required
-                fullWidth
-              />
-
-              <Divider sx={{ my: 1 }}>Participación de Adulto</Divider>
-
-                <FormControl fullWidth required>
-                  <InputLabel id="adult-skate-select-label">¿Usted va a patinar?</InputLabel>
-                  <Select
-                  labelId="adult-skate-select-label"
-                  label="¿Usted va a patinar?"
-                  value={adultWantsToSkate}
-                  onChange={(e) => {
-                    const val = e.target.value as 'si' | 'no';
-                    setAdultWantsToSkate(val);
-                    if (val === 'no') setAdultShoeSize('');
-                  }}
-                >
-                  <MenuItem value="si">Sí</MenuItem>
-                  <MenuItem value="no">No</MenuItem>
-                  </Select>
-                </FormControl>
-
-               {adultWantsToSkate === 'si' && (
-                 <FormControl fullWidth required>
-                  <InputLabel id="adult-size-select-label">Talla de Calzado (Número de Patín)</InputLabel>
-                  <Select
-                    labelId="adult-size-select-label"
-                    label="Talla de Calzado (Número de Patín)"
-                    value={adultShoeSize}
-                    onChange={(e) => setAdultShoeSize(e.target.value as string)}
-                  >
-                    {SHOE_SIZES.map((size) => (
-                      <MenuItem key={size} value={size}>
-                        N° {size}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
-
               <Divider sx={{ my: 1 }} />
 
               {/* Acompañantes toggle */}
@@ -1046,7 +1045,7 @@ export function IcePage() {
                     className="selva-custom-checkbox"
                   />
                 }
-                label="¿Viene acompañado por menores de edad?"
+                label="¿Viene acompañado?"
                 sx={{
                   '& .MuiTypography-root': { fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' },
                 }}
@@ -1055,7 +1054,7 @@ export function IcePage() {
               {isAccompanied && (
                 <Box className="selva-wizard-dependents">
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f766e', mb: 1 }}>
-                    Registrar Acompañantes (Edades permitidas: 5 a 17 años)
+                    Registrar Acompañantes (Edades permitidas: 5 a 100 años)
                   </Typography>
 
                   <Stack spacing={2.5}>
@@ -1078,19 +1077,6 @@ export function IcePage() {
                           />
                           <TextField
                             fullWidth
-                            label={`RUT acompañante ${index + 1}`}
-                            value={dependent.rut}
-                            onChange={(event) => handleChangeDependent(index, 'rut', formatRut(event.target.value))}
-                            placeholder="12345678-5"
-                            error={dependent.rut.trim().length > 0 && !isValidChileanRut(dependent.rut)}
-                            helperText={
-                              dependent.rut.trim().length > 0 && !isValidChileanRut(dependent.rut)
-                                ? 'RUT inválido'
-                                : 'sin puntos y con guion'
-                            }
-                          />
-                          <TextField
-                            fullWidth
                             label="Edad"
                              value={dependent.age}
                              onChange={(event) => handleChangeDependent(index, 'age', event.target.value.replace(/\D/g, ''))}
@@ -1099,25 +1085,10 @@ export function IcePage() {
                              error={dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < MIN_DEPENDENT_AGE || Number(dependent.age) > MAX_DEPENDENT_AGE)}
                              helperText={
                                dependent.age.trim().length > 0 && (isNaN(Number(dependent.age)) || Number(dependent.age) < MIN_DEPENDENT_AGE || Number(dependent.age) > MAX_DEPENDENT_AGE)
-                                 ? 'Edad permitida: 5 a 17 años'
+                                 ? 'Edad permitida: 5 a 100 años'
                                  : ''
                              }
                            />
-                          <FormControl fullWidth required>
-                            <InputLabel id={`dep-size-select-label-${index}`}>Talla de Calzado</InputLabel>
-                            <Select
-                              labelId={`dep-size-select-label-${index}`}
-                              label="Talla de Calzado"
-                              value={dependent.shoeSize}
-                              onChange={(e) => handleChangeDependent(index, 'shoeSize', e.target.value as string)}
-                            >
-                              {SHOE_SIZES.map((size) => (
-                                <MenuItem key={size} value={size}>
-                                  N° {size}
-                                </MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
                         </Box>
                         <IconButton
                           color="error"
@@ -1149,16 +1120,28 @@ export function IcePage() {
                 </Box>
               )}
 
-              <Box className="selva-wizard-actions">
+              <Box
+                className="selva-wizard-actions"
+                sx={{
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
+                  gap: 1,
+                }}
+              >
+                {!admissionSessionId && rulesAccepted && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                    Esperando turno para continuar al siguiente paso...
+                  </Typography>
+                )}
                 <Button
                   variant="contained"
                   onClick={handleGoToStep2}
-                  disabled={!isStep1Valid || validatingRuts}
+                  disabled={!isStep1Valid || validatingRuts || !admissionSessionId}
                   className="selva-wizard-next-btn"
                   fullWidth
                   endIcon={validatingRuts ? <CircularProgress size={20} color="inherit" /> : <ArrowForward />}
                 >
-                  {validatingRuts ? 'Validando...' : 'Continuar'}
+                  {validatingRuts ? 'Validando...' : !admissionSessionId ? 'Esperando turno...' : 'Continuar'}
                 </Button>
               </Box>
             </Stack>
@@ -1305,23 +1288,6 @@ export function IcePage() {
                     <Box className="selva-summary-item"><span className="label">Dirección:</span> <span className="value">{address}</span></Box>
                     <Box className="selva-summary-item"><span className="label">Email:</span> <span className="value">{email}</span></Box>
                     <Box className="selva-summary-item"><span className="label">Whatsapp:</span> <span className="value">+569 {phone}</span></Box>
-                    <Box className="selva-summary-item">
-                      <span className="label">¿Patina?:</span>
-                      <span className="value" style={{ fontWeight: 700, color: adultWantsToSkate === 'si' ? '#0d9488' : '#e11d48' }}>
-                        {adultWantsToSkate === 'si' ? `Sí (N° ${adultShoeSize})` : 'No'}
-                      </span>
-                    </Box>
-                  </Box>
-                </Box>
-
-                <Divider />
-
-                {/* Contacto Emergencia */}
-                <Box className="selva-summary-section">
-                  <Typography className="selva-summary-section-title">Contacto de Emergencia</Typography>
-                  <Box className="selva-summary-grid">
-                    <Box className="selva-summary-item"><span className="label">Nombre:</span> <span className="value">{emergencyName}</span></Box>
-                    <Box className="selva-summary-item"><span className="label">Teléfono:</span> <span className="value">+569 {emergencyPhone}</span></Box>
                   </Box>
                 </Box>
 
@@ -1335,7 +1301,7 @@ export function IcePage() {
                       {activeDependents.map((dep, idx) => (
                         <Box key={idx} className="selva-summary-dependent-row">
                           <Typography className="dep-name"><strong>{dep.name}</strong></Typography>
-                          <Typography className="dep-rut">RUT: {dep.rut} • Edad: {dep.age} años • Patines: N° {dep.shoeSize}</Typography>
+                          <Typography className="dep-rut">Edad: {dep.age} años</Typography>
                         </Box>
                       ))}
                     </Stack>
@@ -1441,7 +1407,7 @@ export function IcePage() {
                         <Warning className="warning-icon" sx={{ fontSize: '24px' }} />
                       </span>
                       <Typography style={{ color: '#1e293b', fontWeight: 500, fontSize: '0.92rem', lineHeight: 1.5, marginLeft: '10px' }}>
-                        Para completar el proceso, revisa tu correo electrónico y/o WhatsApp y <strong style={{ color: '#dc2626' }}>confirma tu reserva</strong> <strong>dentro de los próximos 5 minutos</strong>.
+                        Para completar el proceso, revisa tu correo electrónico y <strong style={{ color: '#dc2626' }}>confirma tu reserva</strong> <strong>dentro de los próximos 5 minutos</strong>.
                         <br /><br />
                         Si no confirmas en ese plazo, la solicitud se cancelará automáticamente.
                       </Typography>
