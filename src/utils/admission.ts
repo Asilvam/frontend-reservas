@@ -72,7 +72,7 @@ export async function enterAdmission(eventType: string) {
     if (axios.isAxiosError(error) && error.response?.status === 429) {
       const payload = error.response.data as { code?: string; message?: string; retryAfterSec?: number } | undefined;
       if (payload?.code === 'WAITLIST_FULL') {
-        const waitlistFullError = new Error(payload.message || 'Sitio sin disponibilidad, intenta más tarde.') as Error & {
+        const waitlistFullError = new Error(payload.message || 'La fila de espera está completa. Inténtalo en un momento más.') as Error & {
           code: string;
           retryAfterSec?: number;
         };

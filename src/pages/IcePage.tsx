@@ -287,8 +287,8 @@ export function IcePage() {
         if (waitlistFullError?.code === 'WAITLIST_FULL') {
           await Swal.fire({
             icon: 'warning',
-            title: 'Sin disponibilidad',
-            text: waitlistFullError.message || 'Sitio sin disponibilidad, intenta más tarde.',
+              title: 'Fila de espera completa',
+              text: waitlistFullError.message || 'La fila de espera está completa. Inténtalo nuevamente.',
             confirmButtonColor: '#0f766e',
           });
           navigate('/home');
