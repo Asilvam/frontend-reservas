@@ -6,6 +6,7 @@ import ProtectedLayout from './components/ProtectedLayout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import IcePage from './pages/IcePage';
+import MaintenancePage from './pages/MaintenancePage';
 
 const INACTIVITY_TIMEOUT_MS = 2 * 60 * 1000;
 
@@ -54,6 +55,7 @@ function App() {
   const showNavbar =
     location.pathname !== '/home' &&
     location.pathname !== '/hielo' &&
+    location.pathname !== '/maintenance' &&
     location.pathname !== '/register';
 
   return (
@@ -65,6 +67,7 @@ function App() {
         <Route path="/dashboard" element={<Navigate to="/home" replace />} />
         <Route path="/selva" element={<Navigate to="/home" replace />} />
         <Route path="/hielo" element={<IcePage />} />
+        <Route path="/maintenance" element={<MaintenancePage />} />
         {/*<Route path="/hielo" element={<Navigate to="/home" replace />} />*/}
         <Route path="/selva/register" element={<Navigate to="/home" replace />} />
         <Route path="/register" element={<Navigate to="/home" replace />} />

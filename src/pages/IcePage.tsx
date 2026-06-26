@@ -51,7 +51,7 @@ const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
 const EVENT_TYPE = 'patines';
 
 function redirectToMaintenancePage() {
-  window.location.assign('/maintenance.html');
+  window.location.assign('/maintenance');
 }
 
 function normalizeRut(rawRut: string) {

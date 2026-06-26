@@ -1,0 +1,119 @@
+.maintenance-react-wrap {
+  width: 100%;
+  max-width: 980px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  padding: 1rem 0;
+}
+
+.maintenance-react-card {
+  width: min(100%, 560px);
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 30px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 16px 36px -24px rgba(30, 41, 59, 0.65);
+  padding: 2.35rem 1.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.maintenance-react-icon {
+  width: 72px !important;
+  height: 72px !important;
+  color: #4338ca;
+  animation: maintenance-react-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes maintenance-react-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.85;
+  }
+}
+
+.maintenance-react-title {
+  margin: 0 !important;
+  color: #3730a3;
+  font-weight: 800 !important;
+  font-size: 1.72rem !important;
+  line-height: 1.25 !important;
+  text-transform: uppercase;
+}
+
+.maintenance-react-copy {
+  margin: 0 !important;
+  color: #334155;
+  font-weight: 650 !important;
+  font-size: 0.98rem !important;
+  line-height: 1.45 !important;
+}
+
+.maintenance-react-countdown {
+  min-width: 152px;
+  min-height: 46px;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  background: rgba(67, 56, 202, 0.12);
+  color: #3730a3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+
+.maintenance-react-button {
+  min-height: 44px;
+  min-width: min(100%, 250px);
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.03em !important;
+  background: linear-gradient(135deg, #4f46e5, #4338ca) !important;
+}
+
+.maintenance-react-button.Mui-disabled {
+  background: rgba(15, 23, 42, 0.35) !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.maintenance-react-home-button {
+  color: #3730a3 !important;
+  font-weight: 800 !important;
+}
+
+@media (max-width: 900px) {
+  .maintenance-react-wrap {
+    padding: 0.7rem 0;
+  }
+
+  .maintenance-react-card {
+    border-radius: 22px;
+    padding: 1.75rem 1.15rem;
+    gap: 0.85rem;
+  }
+
+  .maintenance-react-icon {
+    width: 60px !important;
+    height: 60px !important;
+  }
+
+  .maintenance-react-title {
+    font-size: 1.35rem !important;
+  }
+
+  .maintenance-react-copy {
+    font-size: 0.9rem !important;
+  }
+}
