@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import fondoImage from '../assets/Fondo.jpg';
 import institutionalLogos from '../assets/logos.png';
 import mainLogo from '../assets/logo.png';
-import selvaVivaCard from '../assets/BotonSelvaViva.png';
 import hieloCard from '../assets/BotonPistadehielo.png';
 import superiorAlcaldia from '../assets/superioralcaldia.png';
 import '../styles/home-page.css';
@@ -25,17 +24,6 @@ export function HomePage() {
       </Box>
 
       <Box className="home-campaigns-grid">
-        <Box className="home-campaign-card home-campaign-card-active">
-          <Box component="img" className="home-campaign-image" src={selvaVivaCard} alt="Campana Selva Viva" />
-          <Button
-            variant="contained"
-            className="home-campaign-btn"
-            onClick={() => navigate('/selva')}
-          >
-            Reservar Selva Viva
-          </Button>
-        </Box>
-
         <Box className="home-campaign-card home-campaign-card-active">
           <Box component="img" className="home-campaign-image" src={hieloCard} alt="Campana Pista de Hielo" />
           <Button

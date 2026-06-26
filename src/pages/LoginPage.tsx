@@ -97,7 +97,7 @@ export function LoginPage() {
         });
       }
 
-      navigate(redirectTo || '/selva', { replace: true });
+      navigate(redirectTo || '/home', { replace: true });
     } catch {
       void Swal.fire({
         icon: 'error',
