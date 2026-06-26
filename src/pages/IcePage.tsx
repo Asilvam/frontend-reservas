@@ -42,7 +42,37 @@ type DependentFormItem = {
   age: string;
 };
 
-const EMPTY_DEPENDENT: DependentFormItem = { name: '', age: '' };
+const DEFAULT_DEPENDENT_NAMES = [
+  'Tulio Triviño',
+  'Juan Carlos Bodoque',
+  'Juanín Juan Harry',
+  'Patana Tufillo',
+  'Calcetín con Rombos Man',
+  'Policarpo Avendaño',
+  'Mario Hugo',
+  'Huachimingo',
+  'Guaripolo',
+  'Bongo Stingo',
+  'Cindy',
+  'Lala',
+  'Lolo',
+  'Mico el Micófono',
+  'Diente Blanco',
+  'Tío Horacio',
+  'César Quintanilla',
+  'Simi',
+  'Charango',
+  'Sonia',
+];
+
+function createDefaultDependent(existingDependents: DependentFormItem[] = []): DependentFormItem {
+  const usedNames = new Set(existingDependents.map((dependent) => dependent.name.trim()).filter(Boolean));
+  const name =
+    DEFAULT_DEPENDENT_NAMES.find((defaultName) => !usedNames.has(defaultName)) ??
+    DEFAULT_DEPENDENT_NAMES[existingDependents.length % DEFAULT_DEPENDENT_NAMES.length];
+
+  return { name, age: '' };
+}
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHILEAN_MOBILE_REGEX = /^\d{8}$/;
@@ -131,7 +161,7 @@ export function IcePage() {
   const [villa, setVilla] = useState('');
   
   const [isAccompanied, setIsAccompanied] = useState(false);
-  const [dependents, setDependents] = useState<DependentFormItem[]>([{ ...EMPTY_DEPENDENT }]);
+  const [dependents, setDependents] = useState<DependentFormItem[]>([createDefaultDependent()]);
   const [acceptMarketing, setAcceptMarketing] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [loadedRut, setLoadedRut] = useState('');
@@ -148,7 +178,7 @@ export function IcePage() {
     setAddress('');
     setCommune('');
     setVilla('');
-    setDependents([{ ...EMPTY_DEPENDENT }]);
+    setDependents([createDefaultDependent()]);
     setIsAccompanied(false);
   };
 
@@ -495,7 +525,6 @@ export function IcePage() {
       try {
         setLoadingSchedules(true);
         const { data } = await api.get<Schedule[]>('/schedules?eventType=patines');
-        console.log('[IcePage] Schedules:', data);
         setSchedules(data);
         if (isAllSoldOut(data)) {
           void showSoldOutModal();
@@ -628,7 +657,7 @@ export function IcePage() {
 
   const handleAddDependent = () => {
     if (dependents.length < MAX_DEPENDENTS) {
-      setDependents((prev) => [...prev, { ...EMPTY_DEPENDENT }]);
+      setDependents((prev) => [...prev, createDefaultDependent(prev)]);
     }
   };
 
@@ -827,7 +856,7 @@ export function IcePage() {
       setCommune('');
       setVilla('');
       setIsAccompanied(false);
-      setDependents([{ ...EMPTY_DEPENDENT }]);
+      setDependents([createDefaultDependent()]);
       setSelectedScheduleId('');
       setAcceptMarketing(false);
       setStep(4);
@@ -1039,7 +1068,7 @@ export function IcePage() {
                       const checked = e.target.checked;
                       setIsAccompanied(checked);
                       if (!checked) {
-                        setDependents([{ ...EMPTY_DEPENDENT }]);
+                        setDependents([createDefaultDependent()]);
                       }
                     }}
                     className="selva-custom-checkbox"
@@ -1054,7 +1083,7 @@ export function IcePage() {
               {isAccompanied && (
                 <Box className="selva-wizard-dependents">
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f766e', mb: 1 }}>
-                    Registrar Acompañantes (Edades permitidas: 5 a 100 años)
+                    Registrar Acompañantes
                   </Typography>
 
                   <Stack spacing={2.5}>
