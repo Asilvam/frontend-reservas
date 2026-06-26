@@ -272,7 +272,8 @@ export function IcePage() {
             Swal.update({
               html: `
                 <p style="margin-bottom:8px;">Estamos recibiendo muchas solicitudes.</p>
-                <p id="admission-wait-message" style="margin:0;color:#475569;">Posición #${status.position}. Espera sugerida: ${etaText}.</p>
+                <p id="admission-wait-message" style="margin:0;color:#475569;">Eres el número #${status.position} de ${status.queueSize} personas actualmente en la fila.</p>
+                <p style="margin:8px 0 0;color:#475569;">Espera sugerida: ${etaText}.</p>
                 <p style="margin:8px 0 0;color:#64748b;font-size:0.9rem;">Personas completando formulario ahora: ${status.writersActive}</p>
               `,
             });
