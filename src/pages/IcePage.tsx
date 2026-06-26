@@ -50,6 +50,7 @@ const CHILEAN_RUT_FORMAT_REGEX = /^\d+-[\dK]$/i;
 const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
 const EVENT_TYPE = 'patines';
 const MAINTENANCE_RETRY_DELAY_INDEX_KEY = 'iceMaintenanceRetryDelayIndex';
+const WRITING_STATUS_SYNC_INTERVAL_MS = 10_000;
 
 function redirectToMaintenancePage() {
   window.location.assign('/maintenance');
@@ -272,9 +273,8 @@ export function IcePage() {
             Swal.update({
               html: `
                 <p style="margin-bottom:8px;">Estamos recibiendo muchas solicitudes.</p>
-                <p id="admission-wait-message" style="margin:0;color:#475569;">Eres el número #${status.position} de ${status.queueSize} personas actualmente en la fila.</p>
+                <p id="admission-wait-message" style="margin:0;color:#475569;">Eres el número #${status.position} en la fila.</p>
                 <p style="margin:8px 0 0;color:#475569;">Espera sugerida: ${etaText}.</p>
-                <p style="margin:8px 0 0;color:#64748b;font-size:0.9rem;">Personas completando formulario ahora: ${status.writersActive}</p>
               `,
             });
             await new Promise((resolve) => setTimeout(resolve, status.retryAfterSec * 1000));
@@ -317,14 +317,13 @@ export function IcePage() {
     }
 
     let cancelled = false;
-    const intervalId = window.setInterval(async () => {
+    const syncAdmissionStatus = async () => {
       if (cancelled) return;
       try {
         const status = await getAdmissionStatus(EVENT_TYPE, admissionSessionId);
         if (cancelled) return;
         if (status.status === 'EXPIRED') {
           cancelled = true;
-          window.clearInterval(intervalId);
           setAdmissionRemainingSec(0);
           setAdmissionSessionId(null);
           await Swal.fire({
@@ -340,15 +339,29 @@ export function IcePage() {
           setAdmissionRemainingSec(status.remainingSec);
         }
       } catch {
-        // Silent retry on next tick
+        // Silent retry on next sync.
       }
+    };
+
+    void syncAdmissionStatus();
+
+    const countdownIntervalId = window.setInterval(() => {
+      setAdmissionRemainingSec((current) => {
+        if (current === null) return current;
+        return Math.max(0, current - 1);
+      });
     }, 1000);
+
+    const syncIntervalId = window.setInterval(() => {
+      void syncAdmissionStatus();
+    }, WRITING_STATUS_SYNC_INTERVAL_MS);
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      window.clearInterval(countdownIntervalId);
+      window.clearInterval(syncIntervalId);
     };
-  }, [admissionSessionId, step]);
+  }, [admissionSessionId, navigate, step]);
 
   useEffect(() => {
     return () => {
